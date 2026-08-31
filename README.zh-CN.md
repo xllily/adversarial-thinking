@@ -26,30 +26,47 @@ Coding Agent 的失败方式经常很相似：过早接受第一个可行方案�
 
 ## 安装
 
+我推荐使用 [Skills CLI](https://github.com/vercel-labs/skills) 完成常规安装。它能从仓库根目录识别 `adversarial-thinking`，支持 Codex、Claude Code 和其他 Agent Skills 宿主。使用前需要安装 Node.js 和 npm。
+
+### 交互式安装
+
+让 CLI 询问目标 Agent 和安装范围：
+
+```sh
+npx skills add xllily/adversarial-thinking
+```
+
 ### Codex
 
-在 Codex 中让内置安装器安装这个仓库：
+全局安装到 Codex：
+
+```sh
+npx skills add xllily/adversarial-thinking --skill adversarial-thinking -g -a codex -y
+```
+
+Codex 也提供内置安装器。调用时要明确安装仓库根目录的 Skill：
 
 ```text
 $skill-installer Install xllily/adversarial-thinking with path "." and name "adversarial-thinking".
 ```
 
-安装器会把 Skill 放到 `$CODEX_HOME/skills/adversarial-thinking`。下一轮对话即可使用。
+内置安装器会把 Skill 放到 `$CODEX_HOME/skills/adversarial-thinking`。下一轮对话即可使用。
 
 ### Claude Code
 
-把仓库克隆到 Claude Code 的 Skills 目录：
+全局安装到 Claude Code：
 
 ```sh
-mkdir -p ~/.claude/skills
-git clone https://github.com/xllily/adversarial-thinking.git ~/.claude/skills/adversarial-thinking
+npx skills add xllily/adversarial-thinking --skill adversarial-thinking -g -a claude-code -y
 ```
 
-Claude Code 会把它注册为 `/adversarial-thinking`。如果启动会话时还没有 `~/.claude/skills`，创建目录后重启一次 Claude Code。
+Claude Code 会把它注册为 `/adversarial-thinking`。
 
-### 其他 Agent Skills 宿主
+### 同时安装到 Codex 和 Claude Code
 
-把这个仓库作为一个 Skill 导入。权威 `SKILL.md` 位于仓库根目录。
+```sh
+npx skills add xllily/adversarial-thinking --skill adversarial-thinking -g -a codex -a claude-code -y
+```
 
 ## 使用
 
