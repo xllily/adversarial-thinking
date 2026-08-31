@@ -6,7 +6,7 @@
 
 1. Select scenarios before reading outputs.
 2. Freeze a scoring rubric that measures behavior, not headings or keywords.
-3. Run the prompt in a fresh context without the skill.
+3. Run the prompt in a fresh context where the skill is absent or disabled, and record the effective skill set.
 4. Run the same prompt in a fresh context with the skill explicitly loaded.
 5. Repeat each variant at least three times.
 6. Record the host, model, skill revision, complete outputs, scores, and limitations.
@@ -45,8 +45,9 @@ Each scenario is scored from 0 to 6. A run passes only at 6.
 ## Evidence levels
 
 - **Specification only:** scenario and expected behavior exist.
-- **Retrospective A/B:** baseline and skill-enabled runs exist, but the skill predates the baseline.
+- **Paired smoke:** both conditions ran, but the nominal baseline was not proven skill-free; no comparison is valid.
+- **Retrospective A/B:** an isolated baseline and skill-enabled runs exist, but the skill predates the baseline.
 - **Prospective RED/GREEN:** a failing baseline was captured before the behavior-changing instruction was written.
 - **Cross-model:** the same protocol passes on every declared supported model.
 
-The current public evidence is retrospective A/B only. See [`results/2026-08-31-retrospective-ab.md`](results/2026-08-31-retrospective-ab.md).
+The current public evidence is paired smoke only. It does not meet the retrospective A/B level because the nominal baseline was not isolated from the globally installed skill. See [`results/2026-08-31-retrospective-ab.md`](results/2026-08-31-retrospective-ab.md).

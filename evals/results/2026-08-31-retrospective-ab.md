@@ -1,40 +1,58 @@
-# Retrospective A/B - 2026-08-31
+# Retrospective paired smoke - 2026-08-31
 
 ## Status
 
-- Evidence level: **retrospective A/B**, not prospective RED/GREEN.
+- Evidence level: **paired smoke**, not a valid retrospective A/B or prospective RED/GREEN campaign.
 - Tested pre-packaging instruction hash: `052904454eb721879a0ab9eecb0e94b1307dcbfc1e5707d3d5aa9c5d001f5565`.
 - Final 0.1.0 `SKILL.md` plus references hash: `a7ce49c6057814f45eb1be6d47d45fdb85df1e0d38d1fc009a24989a5188d9ba`.
-- Harness: Codex fresh-context subagents.
+- Harness: Codex fresh-context subagents in an environment where the skill was globally installed.
 - Model: current default inherited from the parent; exact model identity was not exposed and no override was used.
-- Variants: baseline without a skill item; same prompt with `adversarial-thinking` explicitly loaded.
+- Conditions: nominal baseline without an explicit skill item; same prompt with `adversarial-thinking` explicitly loaded.
 - Repetitions: three per variant per scenario.
 - Scoring: the rubric in [`../README.md`](../README.md) was fixed before outputs. Scoring was semantic but not blinded.
 
-The skill existed before this campaign. These runs cannot establish that its instructions were created from a failing baseline.
+The skill remained globally discoverable during both conditions. Omitting an explicit skill item does not prove that the nominal baseline ran without the skill, so the two conditions cannot support a comparative conclusion.
+The skill also existed before this campaign. These runs cannot establish that its instructions were created from a failing baseline.
 Only license, version, and status frontmatter were added after the runs; the instruction body and references were unchanged.
 
 ## Results
 
-| Scenario | Baseline | Skill enabled | Observed increment |
+| Scenario | Nominal baseline (not isolated) | Skill explicitly loaded | Comparative interpretation |
 |---|---:|---:|---:|
-| High-risk review | 3/3 passed, 18/18 points | 3/3 passed, 18/18 points | None |
-| Execution-loop recovery | 3/3 passed, 18/18 points | 3/3 passed, 18/18 points | None |
-| Low-risk negative | 3/3 passed, 18/18 points | 3/3 passed, 18/18 points | None |
-| **Total** | **9/9 passed** | **9/9 passed** | **None observed** |
+| High-risk review | 3/3 passed, 18/18 points | 3/3 passed, 18/18 points | Invalid: baseline not isolated |
+| Execution-loop recovery | 3/3 passed, 18/18 points | 3/3 passed, 18/18 points | Invalid: baseline not isolated |
+| Low-risk negative | 3/3 passed, 18/18 points | 3/3 passed, 18/18 points | Invalid: baseline not isolated |
+| **Total** | **9/9 passed** | **9/9 passed** | **No comparison supported** |
 
-The enabled variant preserved strong behavior in all tested cases. The baseline was equally strong, so this campaign demonstrates no observed regression but does not demonstrate incremental value over the tested default model.
+Both conditions produced outputs that satisfied the rubric, so they remain useful as standalone smoke records. Because the nominal baseline was not isolated, this campaign demonstrates neither no-regression nor incremental value over the tested default model.
 
 ## Fresh-context named discovery
 
-A separate fresh-context task received no explicit skill file item or path. It invoked `$adversarial-thinking` by name and reported:
+On 2026-09-01, a separate fresh-context task received no explicit skill item or skill file path. One personal path prefix in the response is replaced with `<skills-dir>`; the remaining text is verbatim.
 
-- loaded path: `<skills-dir>/adversarial-thinking/SKILL.md` (personal path redacted);
-- required branch: `references/review.md`;
-- checkpoints: Frame → Countermodel → Discriminate → Integrate;
-- low-risk verdict: sound, with no invented blocker.
+### Prompt
 
-Named discovery and branch loading therefore passed in this installed environment. Implicit automatic invocation without naming the skill remains untested.
+> Read-only fresh-context verification. Invoke `$adversarial-thinking` by name in review mode; no skill file path is supplied. Review this low-risk scenario: “A developer fixed one typo in an internal Markdown comment. The change is reversible, has no runtime impact, and the user already authorized it. Decide whether any decision-relevant blocker remains.” Before the verdict, report: (1) the loaded skill name and filesystem path, (2) the focused reference file loaded for this mode, and (3) the shared checkpoint names. Do not edit files. Return a concise plain-text response suitable for preserving as raw evaluation evidence.
+
+### Raw response
+
+```text
+Loaded skill: adversarial-thinking
+Skill path: <skills-dir>/adversarial-thinking/SKILL.md
+Focused reference: <skills-dir>/adversarial-thinking/references/review.md
+Shared checkpoints: Frame, Countermodel, Discriminate, Integrate
+
+Frame: Authorized, reversible typo correction with no runtime impact.
+Countermodel: The diff might contain broader or executable changes.
+Discriminate: The scenario explicitly rules that out.
+Integrate: No material risk or unresolved decision remains.
+
+Verdict: sound
+Decision-relevant blockers: none.
+Files edited: none.
+```
+
+Named discovery, branch loading, proportionate low-risk handling, and the read-only boundary therefore passed in this installed environment. Implicit automatic invocation without naming the skill remains untested.
 
 ## Prompts
 
@@ -374,11 +392,12 @@ No material blockers. Work should continue.
 
 ## Limitations and next discriminator
 
-- The skill predates the baseline, so this is not test-first evidence.
+- The nominal baseline ran while the skill was globally discoverable, so it is not a verified no-skill baseline and no A/B comparison is valid.
+- The skill predates the campaign, so this is not test-first evidence.
 - One current default model and one harness were tested; model identity was unavailable.
 - Skill-enabled runs explicitly loaded the skill, so automatic invocation was not tested.
 - Scoring was not blinded.
 - Token use and latency were not captured.
-- The three prompts were not difficult enough to separate the skill from the strong baseline.
+- The three prompts did not discriminate between the recorded conditions.
 
-The cheapest next discriminating campaign is to target subtle anchoring and native-output failures: a review request with strong evidence for no finding, a planning request where critique must be integrated rather than returned as a verdict, and a brainstorm request where sunk work must be treated only as salvage value. Run those prospectively against at least two declared models.
+The cheapest next discriminating campaign starts by running the no-skill condition in an environment where this skill is absent or disabled and recording the effective skill set. Then target subtle anchoring and native-output failures: a review request with strong evidence for no finding, a planning request where critique must be integrated rather than returned as a verdict, and a brainstorm request where sunk work must be treated only as salvage value. Run those prospectively against at least two declared models.
