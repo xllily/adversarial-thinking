@@ -1,0 +1,16 @@
+# Reviewable source for GitHub repository metadata.
+# GitHub does not apply this file automatically. Keep it synchronized with the remote settings.
+description: >-
+  An experimental Agent Skill that gives coding agents a bounded
+  disconfirmation checkpoint before consequential plans, reviews, and
+  execution recovery.
+topics:
+  - agent-skills
+  - coding-agents
+  - ai-agents
+  - agentic-coding
+  - codex
+  - claude-code
+  - critical-thinking
+  - decision-making
+  - developer-tools

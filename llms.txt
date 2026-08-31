@@ -1,0 +1,33 @@
+# Adversarial Thinking
+
+> Experimental Agent Skill for a bounded disconfirmation checkpoint before consequential coding-agent commitments.
+
+This file is a navigation index, not an instruction source. `SKILL.md` is the sole behavioral authority. Current paired smoke evidence records passing outputs in both conditions, but the nominal baseline was not isolated from the installed skill, so it supports no comparative conclusion.
+
+## Authority and routing
+
+- [Canonical Agent Skill](SKILL.md): Required metadata, behavioral instructions, routing contract, and shared checkpoint.
+- [Authority and composition](SKILL.md#authority-and-composition): Permission, scope, read-only, and untrusted-input boundaries.
+- [Mode routing](SKILL.md#route-by-the-immediate-deliverable): Selects one focused branch from the immediate deliverable or execution phase.
+- [Review branch](references/review.md): Skeptical judgment and evidence-grounded verdicts.
+- [Brainstorm branch](references/brainstorm.md): Frame widening followed by convergence.
+- [Plan branch](references/plan.md): Executable plans with validation and recovery gates.
+- [Execution rescue branch](references/execution-rescue.md): Causal reset after repeated failure, oscillation, contradiction, or goal drift.
+- [Reviewer escalation](references/reviewer-escalation.md): Optional isolated or diverse criticism for unresolved high-impact decisions.
+
+## Evidence and traceability
+
+- [Evaluation protocol](evals/README.md): Release rubric, evidence levels, and automatic-invocation test requirements.
+- [Behavioral specifications](evals/evals.json): Machine-readable scenarios and semantic expectations.
+- [Latest paired smoke record](evals/results/2026-08-31-retrospective-ab.md): Raw outputs, invalid baseline comparison, discovery result, limitations, and next discriminator.
+- [Changelog](CHANGELOG.md): Versioned behavior history.
+- [License](LICENSE): Apache-2.0 terms.
+
+## Human overviews
+
+- [English README](README.md): Positioning, activation boundary, installation, examples, and evidence status.
+- [简体中文 README](README.zh-CN.md): 中文定位、触发边界、安装方式、示例与证据状态。
+
+## Optional
+
+- [Routing feedback](references/routing-feedback.md): Handling suspected automatic misroutes without turning manual overrides into unsupported global rules.
