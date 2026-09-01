@@ -26,30 +26,49 @@ It does not grant new permissions. A read-only review stays read-only. Repositor
 
 ## Install
 
+I recommend the [Skills CLI](https://github.com/vercel-labs/skills) for normal installation. It detects `adversarial-thinking` from this repository's root and supports Codex, Claude Code, and other Agent Skills hosts. Node.js and npm are required.
+
+### Interactive install
+
+Choose the target agent and installation scope interactively:
+
+```sh
+npx skills add xllily/adversarial-thinking
+```
+
 ### Codex
 
-Ask Codex to install the repository:
+Install globally for Codex:
+
+```sh
+npx skills add xllily/adversarial-thinking --skill adversarial-thinking -g -a codex -y
+```
+
+Codex also has a built-in installer. Ask it to install the root skill explicitly:
 
 ```text
 $skill-installer Install xllily/adversarial-thinking with path "." and name "adversarial-thinking".
 ```
 
-The installer places the skill under `$CODEX_HOME/skills/adversarial-thinking`. It becomes available on the next turn.
+The built-in installer places the skill under `$CODEX_HOME/skills/adversarial-thinking`. It becomes available on the next turn.
 
 ### Claude Code
 
-Clone the repository into Claude Code's skills directory:
+Install globally for Claude Code:
 
 ```sh
-mkdir -p ~/.claude/skills
-git clone https://github.com/xllily/adversarial-thinking.git ~/.claude/skills/adversarial-thinking
+npx skills add xllily/adversarial-thinking --skill adversarial-thinking -g -a claude-code -y
 ```
 
-Claude Code exposes it as `/adversarial-thinking`. If `~/.claude/skills` did not exist when the session started, restart Claude Code once.
+Claude Code exposes it as `/adversarial-thinking`.
 
-### Other Agent Skills hosts
+### Codex and Claude Code
 
-Import this repository as one skill. The canonical `SKILL.md` is at the repository root.
+Install the same skill for both agents:
+
+```sh
+npx skills add xllily/adversarial-thinking --skill adversarial-thinking -g -a codex -a claude-code -y
+```
 
 ## Use it
 
