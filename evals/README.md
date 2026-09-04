@@ -66,3 +66,7 @@ Without router or loaded-skill telemetry, record only that no behavioral change 
 - **Cross-model:** the same protocol passes on every declared supported model.
 
 The current public evidence is paired smoke only. It does not meet the retrospective A/B level because the nominal baseline was not isolated from the globally installed skill. See [`results/2026-08-31-retrospective-ab.md`](results/2026-08-31-retrospective-ab.md).
+
+## Offline harness
+
+[`harness/`](harness/) contains the zero-model-call controller used to validate campaign data, prepare randomized requests, blind outputs, verify isolation receipts, and summarize scored runs. The harness does not execute agents or judge natural-language outputs. See [`harness/adapter-contract.md`](harness/adapter-contract.md) for the boundary an external runner must satisfy.
