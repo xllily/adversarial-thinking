@@ -149,6 +149,148 @@ class AgentTests(unittest.TestCase):
             self.assertTrue((next(Path(tmp).iterdir()) / 'failure.json').exists())
 
 
+class FakeClock:
+    def __init__(self):
+        self.now = 0
+        self.sleeps = []
+
+    def __call__(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.sleeps.append(seconds)
+        self.now += seconds
+
+
+class PacingTests(unittest.TestCase):
+    def test_response_end_gap_crosses_targets_without_spending_active_deadline(self):
+        clock = FakeClock()
+        pacer = s.RequestPacer(clock, clock.sleep)
+        sent, ended = [], []
+        def send(*args):
+            sent.append(clock())
+            clock.now += 2
+            ended.append(clock())
+            i = len(sent)
+            return response('read', {'path': 'a'}, f'call_{i}') if i < 5 else response()
+        first = s.run_agent(config(), 'p', '', lambda *x: {}, lambda *x: None,
+                            lambda *x: None, send, clock, pacer=pacer)
+        second = s.run_agent(config(), 'p', '', lambda *x: {}, lambda *x: None,
+                             lambda *x: None, send, clock, pacer=pacer)
+        self.assertEqual(first['pacing_wait_ms'], 240000)
+        self.assertEqual(first['active_latency_ms'], 10000)
+        self.assertEqual(second['pacing_wait_ms'], 60000)
+        self.assertTrue(all(start - end >= 60 for start, end in zip(sent[1:], ended)))
+        self.assertLessEqual(max(clock.sleeps), 30)
+
+    def test_tool_time_counts_toward_gap_and_active_deadline(self):
+        clock = FakeClock()
+        pacer = s.RequestPacer(clock, clock.sleep)
+        replies = iter([response('read', {'path': 'a'}), response()])
+        def tool(*args): clock.now += 20; return {}
+        result = s.run_agent(config(), 'p', '', tool, lambda *x: None,
+                             lambda *x: None, lambda *x: next(replies), clock, pacer=pacer)
+        self.assertEqual(result['pacing_wait_ms'], 40000)
+        self.assertEqual(result['active_latency_ms'], 20000)
+        clock = FakeClock()
+        pacer = s.RequestPacer(clock, clock.sleep)
+        attempts = []
+        def slow(*args): clock.now += 181; return {}
+        with self.assertRaisesRegex(ValueError, 'deadline'):
+            s.run_agent(config(), 'p', '', slow, attempts.append, lambda *x: None,
+                        lambda *x: response('read', {'path': 'a'}), clock, pacer=pacer)
+        self.assertEqual(attempts, [1])
+
+    def test_interrupted_wait_sends_no_request_or_reservation(self):
+        clock = FakeClock()
+        def interrupted(*args): raise KeyboardInterrupt()
+        pacer = s.RequestPacer(clock, interrupted); pacer.finished()
+        budget = s.CostBudget(lambda *x: None)
+        attempts, sends = [], []
+        with self.assertRaises(KeyboardInterrupt):
+            s.run_agent(config(), 'p', '', lambda *x: {}, attempts.append,
+                        lambda *x: None, lambda *x: sends.append(x), clock, budget, pacer)
+        self.assertEqual((attempts, sends, budget.requests), ([], [], 0))
+
+    def test_failed_request_is_not_retried_when_paced(self):
+        clock = FakeClock()
+        pacer = s.RequestPacer(clock, clock.sleep)
+        attempts = []
+        def fail(*args): raise s.provider.ProbeError('provider HTTP status 429')
+        with self.assertRaises(s.provider.ProbeError):
+            s.run_agent(config(), 'p', '', lambda *x: {}, attempts.append,
+                        lambda *x: None, fail, clock, pacer=pacer)
+        self.assertEqual(attempts, [1])
+        self.assertEqual(pacer.ready_at, 60)
+
+
+class ContinuationTests(unittest.TestCase):
+    def prior_budget(self):
+        return dict(s.CostBudget(lambda *x: None).snapshot(),
+                    estimated_cost_cny='0.031566', pending_reservation_cny='0.022569',
+                    reserved_requests=6, reported_prompt_tokens=4414, reported_completion_tokens=2036)
+
+    def test_prior_cost_unknown_reservation_and_attempts_stay_charged(self):
+        budget = s.CostBudget(lambda *x: None, carried=self.prior_budget())
+        self.assertEqual((budget.spent, budget.carried_reservation, budget.requests), (31566, 22569, 6))
+        budget.reserve(b'{}'); budget.observe(response())
+        self.assertEqual((budget.spent, budget.carried_reservation, budget.requests), (32046, 22569, 7))
+        exhausted = dict(self.prior_budget(), estimated_cost_cny='2.980000')
+        with self.assertRaisesRegex(ValueError, 'request not sent'):
+            s.CostBudget(lambda *x: None, carried=exhausted).reserve(b'{}')
+        exhausted = dict(self.prior_budget(), reserved_requests=96)
+        with self.assertRaisesRegex(ValueError, 'request not sent'):
+            s.CostBudget(lambda *x: None, carried=exhausted).reserve(b'{}')
+
+    def test_malformed_previous_accounting_is_rejected(self):
+        for key, value in [('reserved_requests', True), ('reserved_requests', -1),
+                           ('pending_reservation_cny', 'NaN'), ('limit_cny', '30.000000')]:
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                s.CostBudget(lambda *x: None, carried=dict(self.prior_budget(), **{key: value}))
+
+    def test_continuation_binds_original_campaign_and_failed_evidence(self):
+        current = dict(root='/tmp/test', provider={'config_sha256': 'cfg'}, manifest_sha256='manifest',
+                       offline_evidence_sha256={'a': 'receipt'})
+        failure = dict(outcome='failed_or_unknown_no_retry', completed=[{'target': 'a'}],
+                       cost_monitor=self.prior_budget())
+        previous = s.digest(current)
+        with tempfile.TemporaryDirectory() as tmp, patch.object(s.provider, 'RUNS', Path(tmp)):
+            ledger = Path(tmp) / ('shakedown-' + previous); ledger.mkdir()
+            s.provider.write_new(ledger / 'plan.json', current)
+            s.provider.write_new(ledger / 'failure.json', failure)
+            result = s.continuation_context(previous, current, {'assignments': [{'target': 'a'}]})
+            self.assertEqual(result['failure_sha256'], s.digest(failure))
+            with self.assertRaisesRegex(ValueError, 'mismatch'):
+                s.continuation_context(previous, dict(current, provider={}), {'assignments': []})
+            with self.assertRaisesRegex(ValueError, 'completed targets'):
+                s.continuation_context(previous, current, {'assignments': []})
+
+    def test_completed_target_is_skipped_and_failed_parent_can_only_continue_once(self):
+        previous = 'a' * 64
+        continuation = {'plan_sha256': previous, 'completed': [{'target': 'done'}],
+                        'cost_monitor': self.prior_budget()}
+        plan = {'continuation': continuation}
+        assignments = [{'target': t, 'case': {'prompt': 'p'}} for t in ['done', 'todo']]
+        receipt = {'receipt': {'skill_present': False}, 'runtime': {'workspace_files': []}}
+        result = {'model_requests': 1, 'reported_total_tokens': 120}
+        with tempfile.TemporaryDirectory() as tmp, patch.object(s.provider, 'RUNS', Path(tmp)), \
+             patch.object(s, 'make_plan', return_value=plan), \
+             patch.object(s.isolation, 'load_manifest', return_value={'assignments': assignments}), \
+             patch.object(s.isolation, 'invoke', return_value=receipt) as invoke, \
+             patch.object(s.isolation, 'check_receipt'), \
+             patch.object(s, 'run_agent', return_value=result) as agent, patch('builtins.print'):
+            (Path(tmp) / ('shakedown-' + previous)).mkdir()
+            outcome = s.execute(Path(tmp), config(), plan, s.digest(plan))
+            self.assertEqual(outcome['completed_runs'], 2)
+            self.assertEqual([c.args[1]['target'] for c in invoke.call_args_list], ['todo', 'todo'])
+            agent.assert_called_once()
+            self.assertEqual(agent.call_args.kwargs['cost_budget'].requests, 6)
+            changed = dict(plan, code='changed')
+            with patch.object(s, 'make_plan', return_value=changed), self.assertRaises(FileExistsError):
+                s.execute(Path(tmp), config(), changed, s.digest(changed))
+            agent.assert_called_once()
+
+
 class CostBudgetTests(unittest.TestCase):
     def test_reservation_blocks_before_attempt_or_network(self):
         events, attempts, sends = [], [], []

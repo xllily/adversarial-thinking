@@ -20,6 +20,7 @@ LIMITS = {'runs': 8, 'model_requests_per_run': 12, 'model_requests_total': 96,
           'reported_total_token_stop_threshold_per_run': 16000,
           'request_bytes': 12288, 'tool_calls_per_run': 12,
           'run_deadline_seconds': 180, 'request_deadline_seconds': 30,
+          'request_gap_seconds': 60,
           'retries': 0, 'redirects': 0, 'delegation': 0}
 COST_POLICY = {'limit_cny': '3.000000', 'basis': 'official reference, peak rates, no cache discount',
                'input_cny_per_million': 3, 'output_cny_per_million': 9,
@@ -42,7 +43,32 @@ def digest(value):
     return hashlib.sha256(provider.encode(value)).hexdigest()
 
 
-def make_plan(root, config):
+def continuation_context(previous, current, manifest):
+    if previous is None:
+        return None
+    if not re.fullmatch(r'[0-9a-f]{64}', previous):
+        raise ValueError('invalid previous plan digest')
+    ledger = provider.RUNS / ('shakedown-' + previous)
+    plan = provider.strict_json((ledger / 'plan.json').read_bytes())
+    failure = provider.strict_json((ledger / 'failure.json').read_bytes())
+    if (digest(plan) != previous or any(plan[k] != current[k] for k in
+            ('root', 'provider', 'manifest_sha256', 'offline_evidence_sha256')) or
+            failure.get('outcome') != 'failed_or_unknown_no_retry'):
+        raise ValueError('previous campaign/config/evidence mismatch')
+    completed = failure['completed']
+    targets = {a['target'] for a in manifest['assignments']}
+    seen = [r['target'] for r in completed]
+    if len(seen) != len(set(seen)) or not set(seen) <= targets:
+        raise ValueError('invalid previous completed targets')
+    budget = failure['cost_monitor']
+    # Validate accounting before a new plan can be authorized.
+    CostBudget(lambda *x: None, carried=budget)
+    return {'plan_sha256': previous, 'failure_sha256': digest(failure),
+            'completed': completed, 'cost_monitor': budget,
+            'partial_run_policy': 'restart incomplete target with fresh messages; retain all prior cost and attempts'}
+
+
+def make_plan(root, config, previous=None):
     manifest = isolation.load_manifest(root)
     # Require actual completed offline evidence; never synthesize it from assignments.
     summary = provider.strict_json((root / 'offline-evidence/summary.json').read_bytes())
@@ -57,7 +83,7 @@ def make_plan(root, config):
     code = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in
             [Path(__file__), Path(isolation.__file__), isolation.WORKER,
              Path(provider.__file__), Path(isolation.pilot.__file__)]}
-    return {'schema': 1, 'purpose': 'diagnostic agent isolation shakedown',
+    result = {'schema': 1, 'purpose': 'diagnostic agent isolation shakedown',
             'root': str(root), 'provider': {k: v for k, v in provider.plan(config).items()
             if k in {'config_sha256', 'protocol', 'endpoint', 'model', 'declared_version',
                      'immutable_version_verified', 'tool_support_declared'}}, 'limits': LIMITS,
@@ -70,6 +96,8 @@ def make_plan(root, config):
             'Before dispatch, request bytes plus completion cap are compared with remaining '
             'tokens as a conservative guard, not a proven tokenizer bound. A response can '
             'cross 16000; abort and record the overrun. No claim of billing cap or T0 budget parity.'}
+    result['continuation'] = continuation_context(previous, result, manifest)
+    return result
 
 
 def bounded_send(config, payload, seconds):
@@ -97,16 +125,55 @@ def parse_usage(data):
         raise ValueError('missing or malformed usage') from None
 
 
+def micro_cny(value):
+    if not isinstance(value, str) or not re.fullmatch(r'[0-9]+\.[0-9]{6}', value):
+        raise ValueError('invalid CNY accounting')
+    whole, fractional = value.split('.')
+    return int(whole) * 1000000 + int(fractional)
+
+
+class RequestPacer:
+    """One shared response-end-to-next-dispatch gap across every target."""
+    def __init__(self, clock=time.monotonic, sleep=time.sleep):
+        self.clock, self.sleep, self.ready_at = clock, sleep, None
+
+    def wait(self):
+        started = self.clock()
+        while self.ready_at is not None:
+            remaining = self.ready_at - self.clock()
+            if remaining <= 0: break
+            self.sleep(min(30, remaining))
+        return self.clock() - started
+
+    def finished(self):
+        self.ready_at = self.clock() + LIMITS['request_gap_seconds']
+
+
 class CostBudget:
     """Per-batch integer-microyuan reference estimate; not a gateway billing oracle."""
-    def __init__(self, persist, limit_micro_cny=3000000):
+    def __init__(self, persist, limit_micro_cny=3000000, carried=None):
         self.persist, self.limit = persist, limit_micro_cny
         self.spent = self.pending = self.requests = 0
         self.prompt_tokens = self.completion_tokens = 0
+        self.carried_reservation = 0
+        if carried is not None:
+            if (carried['basis'] != COST_POLICY['basis'] or
+                    micro_cny(carried['limit_cny']) != self.limit):
+                raise ValueError('previous cost policy mismatch')
+            self.spent = micro_cny(carried['estimated_cost_cny'])
+            self.carried_reservation = (micro_cny(carried['pending_reservation_cny']) +
+                                        micro_cny(carried.get('carried_reservation_cny', '0.000000')))
+            keys = ('reserved_requests', 'reported_prompt_tokens', 'reported_completion_tokens')
+            if any(type(carried[k]) is not int or carried[k] < 0 for k in keys):
+                raise ValueError('invalid previous usage counts')
+            self.requests, self.prompt_tokens, self.completion_tokens = (carried[k] for k in keys)
+            if not 0 < self.requests <= LIMITS['model_requests_total']:
+                raise ValueError('invalid previous request count')
 
     def snapshot(self):
         return {'estimated_cost_cny': f'{self.spent / 1000000:.6f}',
                 'pending_reservation_cny': f'{self.pending / 1000000:.6f}',
+                'carried_reservation_cny': f'{self.carried_reservation / 1000000:.6f}',
                 'limit_cny': f'{self.limit / 1000000:.6f}',
                 'reserved_requests': self.requests,
                 'reported_prompt_tokens': self.prompt_tokens,
@@ -118,7 +185,8 @@ class CostBudget:
             raise ValueError('unresolved cost reservation; no retry')
         estimate = ((len(payload) + 512) * COST_POLICY['input_cny_per_million'] +
                     LIMITS['completion_tokens_per_request'] * COST_POLICY['output_cny_per_million'])
-        if self.requests >= LIMITS['model_requests_total'] or self.spent + estimate >= self.limit:
+        if (self.requests >= LIMITS['model_requests_total'] or
+                self.spent + self.carried_reservation + estimate >= self.limit):
             self.persist('blocked', self.requests + 1, self.snapshot())
             raise ValueError('CNY budget would be reached; request not sent')
         self.pending = estimate
@@ -137,7 +205,7 @@ class CostBudget:
         self.completion_tokens += usage['completion_tokens']
         self.pending = 0
         self.persist('observed', self.requests, self.snapshot())
-        if self.spent >= self.limit or exceeded_reservation:
+        if self.spent + self.carried_reservation >= self.limit or exceeded_reservation:
             raise ValueError('CNY estimate reached limit or exceeded request reservation')
 
 
@@ -159,8 +227,11 @@ def parse_response(data):
 
 
 def run_agent(config, prompt, discovery, execute_tool, before_send, record,
-              send=bounded_send, clock=time.monotonic, cost_budget=None):
+              send=bounded_send, clock=time.monotonic, cost_budget=None, pacer=None):
     started = clock()
+    paused = 0
+    def active_elapsed():
+        return clock() - started - paused
     messages = [{'role': 'system', 'content':
         'Work within /workspace using the available read and shell tools. Do not edit files. '
         'Skill files listed below may be read when their description matches the task. '
@@ -168,7 +239,7 @@ def run_agent(config, prompt, discovery, execute_tool, before_send, record,
         + discovery}, {'role': 'user', 'content': prompt}]
     calls, tokens, tool_count, ids = 0, 0, 0, set()
     while calls < LIMITS['model_requests_per_run']:
-        remaining = LIMITS['run_deadline_seconds'] - (clock() - started)
+        remaining = LIMITS['run_deadline_seconds'] - active_elapsed()
         if remaining <= 0: raise ValueError('run deadline exceeded')
         payload = provider.encode({'model': config['T1_MODEL_ID'], 'messages': messages,
                                   'tools': TOOLS, 'tool_choice': 'auto', 'parallel_tool_calls': False,
@@ -178,11 +249,21 @@ def run_agent(config, prompt, discovery, execute_tool, before_send, record,
             raise ValueError('request byte budget exhausted')
         if tokens + len(payload) + LIMITS['completion_tokens_per_request'] > 16000:
             raise ValueError('conservative token dispatch guard exhausted')
+        if pacer is not None:
+            waited = pacer.wait()
+            paused += waited
+            record('pacing', calls + 1, {'waited_seconds': waited,
+                                        'minimum_gap_seconds': LIMITS['request_gap_seconds']})
+        remaining = LIMITS['run_deadline_seconds'] - active_elapsed()
+        if remaining <= 0: raise ValueError('run deadline exceeded')
         if cost_budget is not None:
             cost_budget.reserve(payload)
         before_send(calls + 1)
         calls += 1
-        data = send(config, payload, min(remaining, LIMITS['request_deadline_seconds']))
+        try:
+            data = send(config, payload, min(remaining, LIMITS['request_deadline_seconds']))
+        finally:
+            if pacer is not None: pacer.finished()
         # Persist full response locally (redacted by controller), even if parsing fails.
         record('response', calls, data)
         if cost_budget is not None:
@@ -191,7 +272,7 @@ def run_agent(config, prompt, discovery, execute_tool, before_send, record,
         tokens += usage['total_tokens']
         if tokens > 16000 or usage['completion_tokens'] > LIMITS['completion_tokens_per_request']:
             raise ValueError('reported token budget exceeded')
-        if clock() - started >= LIMITS['run_deadline_seconds']:
+        if active_elapsed() >= LIMITS['run_deadline_seconds']:
             raise ValueError('run deadline exceeded')
         message = choice['message']
         if choice['finish_reason'] == 'stop':
@@ -200,6 +281,8 @@ def run_agent(config, prompt, discovery, execute_tool, before_send, record,
             return {'complete_output': message['content'], 'model_requests': calls,
                     'reported_total_tokens': tokens, 'tool_calls': tool_count,
                     'latency_ms': round((clock() - started) * 1000), 'cost_usd': None,
+                    'active_latency_ms': round(active_elapsed() * 1000),
+                    'pacing_wait_ms': round(paused * 1000),
                     'evaluation_record': False}
         raw_calls = message.get('tool_calls')
         if not isinstance(raw_calls, list) or not raw_calls:
@@ -236,7 +319,7 @@ def run_agent(config, prompt, discovery, execute_tool, before_send, record,
             {'id': call_id, 'type': 'function', 'function': {'name': name, 'arguments': json.dumps(arguments)}}
             for call_id, name, arguments in validated]})
         for call_id, name, arguments in validated:
-            if clock() - started >= LIMITS['run_deadline_seconds']:
+            if active_elapsed() >= LIMITS['run_deadline_seconds']:
                 raise ValueError('run deadline exceeded')
             tool_count += 1
             result = execute_tool(name, arguments)
@@ -246,7 +329,8 @@ def run_agent(config, prompt, discovery, execute_tool, before_send, record,
 
 
 def execute(root, config, approved, authorization):
-    current = make_plan(root, config)
+    previous = (approved.get('continuation') or {}).get('plan_sha256')
+    current = make_plan(root, config, previous)
     if approved != current or authorization != digest(current):
         raise ValueError('reviewed plan/config/code/evidence mismatch')
     if config['T1_SUPPORTS_TOOL_CALLS'] != 'true':
@@ -255,19 +339,29 @@ def execute(root, config, approved, authorization):
     ledger.mkdir(mode=0o700)
     # Claim is durable before any invocation; replay is forbidden for this plan.
     provider.write_new(ledger / 'plan.json', current)
+    continuation = current.get('continuation')
+    if continuation is not None:
+        provider.write_new(provider.RUNS / ('shakedown-' + previous) / 'continuation-claim.json',
+                           {'next_plan_sha256': digest(current)})
     import os
     fd = os.open(ledger.parent, os.O_RDONLY)
     try: os.fsync(fd)
     finally: os.close(fd)
     manifest = isolation.load_manifest(root)
-    completed = []
+    completed = list(continuation['completed']) if continuation else []
+    completed_targets = {r['target'] for r in completed}
     def cost_event(kind, number, value):
         provider.write_new(ledger / f'cost-{number:03d}-{kind}.json', value)
         if kind == 'observed':
             print('reference cost estimate CNY ' + value['estimated_cost_cny'] + '/3.000000', flush=True)
-    cost_budget = CostBudget(cost_event)
+    cost_budget = CostBudget(cost_event, carried=continuation['cost_monitor'] if continuation else None)
+    pacer = RequestPacer()
+    # Include an initial cooldown when continuing a failed batch in a new process.
+    if continuation: pacer.finished()
     try:
         for a in manifest['assignments']:
+            if a['target'] in completed_targets:
+                continue
             run = ledger / a['target']
             run.mkdir()
             fd = os.open(ledger, os.O_RDONLY)
@@ -292,7 +386,7 @@ def execute(root, config, approved, authorization):
                                lambda n, v: isolation.invoke(root, a, {'name': n, 'arguments': v}),
                                lambda n: provider.write_new(run / f'attempt-{n}.json',
                                           {'attempt': n, 'time': time.time(), 'outcome': 'unknown_before_send'}),
-                               persist, cost_budget=cost_budget)
+                               persist, cost_budget=cost_budget, pacer=pacer)
             after = isolation.invoke(root, a, {'operation': 'inspect'})
             isolation.check_receipt(after, a)
             if after['receipt'] != observed['receipt']:
@@ -302,9 +396,15 @@ def execute(root, config, approved, authorization):
             completed.append({'target': a['target'], 'model_requests': result['model_requests'],
                               'reported_total_tokens': result['reported_total_tokens']})
             print('diagnostic agent completed: ' + a['target'], flush=True)
-    except BaseException:
+    except BaseException as exc:
+        error = {'category': 'controller_or_transport_failure'}
+        if isinstance(exc, provider.ProbeError) and re.fullmatch(r'provider HTTP status [0-9]{3}', str(exc)):
+            error = {'category': 'provider_http', 'http_status': int(str(exc)[-3:])}
+        elif isinstance(exc, TimeoutError):
+            error = {'category': 'timeout'}
         provider.write_new(ledger / 'failure.json', {'outcome': 'failed_or_unknown_no_retry',
-                           'completed': completed, 'evaluation_record': False, 'cost_monitor': cost_budget.snapshot()})
+                           'completed': completed, 'evaluation_record': False,
+                           'error': error, 'cost_monitor': cost_budget.snapshot()})
         raise ValueError('shakedown stopped; inspect attempt ledger; no retry') from None
     result = {'completed_runs': len(completed), 'runs': completed, 'evaluation_record': False,
               'cost_usd': None, 'immutable_version_verified': False, 'cost_monitor': cost_budget.snapshot()}
@@ -318,12 +418,13 @@ def main():
     parser.add_argument('--root', type=Path, required=True)
     parser.add_argument('--authorize-plan-sha256')
     parser.add_argument('--plan', type=Path, help='explicit new plan file; existing plans are never overwritten')
+    parser.add_argument('--previous-plan-sha256', help='plan only: reviewed failed batch whose budget and completed targets carry forward')
     args = parser.parse_args()
     try:
         config = provider.load_config()
         plan_path = args.plan or args.root / 'shakedown-plan.controller.json'
         if args.command == 'plan':
-            plan = make_plan(args.root, config)
+            plan = make_plan(args.root, config, args.previous_plan_sha256)
             provider.write_new(plan_path, plan)
             print(json.dumps({'plan': str(plan_path), 'plan_sha256': digest(plan), 'limits': LIMITS,
                               'model': plan['provider']['model'], 'cost_usd': None, 'cost_policy': COST_POLICY}, indent=2))

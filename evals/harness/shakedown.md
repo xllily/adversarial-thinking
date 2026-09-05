@@ -91,8 +91,9 @@ The operational envelope is:
 - 8 targets, at most 12 model requests per target / 96 total;
 - at most 1024 completion tokens per request / 98304 total requested maximum;
 - 12288 request bytes per request and 65536 response bytes;
-- at most 12 tool calls and a 180-second agent-loop deadline per target;
+- at most 12 tool calls and a 180-second active agent-loop deadline per target;
 - a 30-second deadline for each provider request on this Unix controller;
+- at least 60 seconds from each response ending to the next request, across targets;
 - no retries, redirects, model/protocol fallback, delegation, or automatic judge;
 - abort the entire batch on its first failed or incomplete run.
 
@@ -108,6 +109,12 @@ verified. Input billing can differ and a response can cross the threshold; such
 an overrun is recorded and aborts execution. Do not present this as a hard input
 token cap or a monetary ceiling. Infrastructure inspection/cleanup time is
 outside the agent-loop timer.
+
+The shared request pacer measures the gap with a monotonic clock. Tool execution
+already consumes part of that gap; any remaining wait is excluded from the
+180-second active deadline. Result records report total latency, active latency,
+and pacing wait separately. Interrupting a wait sends no request. A failed HTTP
+request still ends the batch without retry, regardless of the pacing policy.
 
 The user-authorized CNY 3 threshold is monitored across all eight runs by
 `CostBudget`, using integer microyuan and the official peak reference rates
@@ -133,6 +140,16 @@ scope before recovery. Never delete evidence to make a retry possible. For a
 separately reviewed repair, `plan` and `run` accept `--plan NEW_PLAN_PATH`, allowing
 a new plan to reuse unchanged, verified mounts without overwriting the previous
 plan or its failed ledger.
+
+When the user authorizes continuation after a failed batch, prepare a fresh plan
+with `--previous-plan-sha256 PREVIOUS_DIGEST --plan NEW_PLAN_PATH`. The controller
+binds the failed ledger and unchanged campaign, provider, and offline evidence;
+skips completed targets; and restarts only incomplete targets with fresh messages.
+Previously reported cost, unresolved reservations, usage, and attempted requests
+carry forward against the same CNY 3 and 96-request limits. Each failed parent
+can be claimed by only one continuation. Continuation begins with a 60-second
+cooldown, retains all earlier evidence, and does not reuse a partial transcript.
+This requires new user scope after the failure; it is never automatic recovery.
 
 ## Evidence and remaining gates
 
