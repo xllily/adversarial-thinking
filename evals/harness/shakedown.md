@@ -64,7 +64,10 @@ no gold, condition labels, assignments, or credentials enter the messages.
 The controller holds the API key. Docker subprocesses get only explicitly
 allowlisted client environment variables, and the container gets a cleared
 environment. Model-selected tool names, IDs, JSON arguments, and the shell
-command are validated before dispatch. Provider response bodies and full tool
+command are validated for the entire response batch before dispatch. If a gateway
+returns several calls despite `parallel_tool_calls=false`, they execute
+sequentially after the whole batch fits the remaining tool budget. Duplicate IDs
+or an invalid later member reject the whole batch. Provider response bodies and full tool
 traces are retained locally with key redaction; console failures are generic.
 
 Generate the reviewable plan after successful offline rehearsal:
@@ -109,7 +112,10 @@ outside the agent-loop timer.
 Plans and attempt ledgers use exclusive creation and fsync before transmission.
 Rerunning the same plan is refused, even after interruption or success. An
 unknown outcome consumes authorization; inspect saved attempts and obtain new
-scope before recovery. Never delete evidence to make a retry possible.
+scope before recovery. Never delete evidence to make a retry possible. For a
+separately reviewed repair, `plan` and `run` accept `--plan NEW_PLAN_PATH`, allowing
+a new plan to reuse unchanged, verified mounts without overwriting the previous
+plan or its failed ledger.
 
 ## Evidence and remaining gates
 

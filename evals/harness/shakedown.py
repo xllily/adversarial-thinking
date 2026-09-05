@@ -141,33 +141,46 @@ def run_agent(config, prompt, discovery, execute_tool, before_send, record,
                     'latency_ms': round((clock() - started) * 1000), 'cost_usd': None,
                     'evaluation_record': False}
         raw_calls = message.get('tool_calls')
-        if not isinstance(raw_calls, list) or len(raw_calls) != 1:
-            raise ValueError('expected one nonparallel tool call')
-        call = raw_calls[0]
-        try:
-            call_id, name = call['id'], call['function']['name']
-            if (call['type'] != 'function' or not isinstance(call_id, str) or
-                    not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', call_id) or call_id in ids or
-                    name not in ('read', 'shell')):
-                raise ValueError('invalid tool name or id')
-            arguments = provider.strict_json(call['function']['arguments'])
-            field = 'path' if name == 'read' else 'command'
-            if not isinstance(arguments, dict) or set(arguments) != {field} or not isinstance(arguments[field], str):
-                raise ValueError('invalid tool arguments')
-            if name == 'shell' and arguments['command'] != 'python3 verify.py':
-                raise ValueError('shell command not allowed')
-        except (KeyError, TypeError):
-            raise ValueError('malformed tool call') from None
-        if tool_count >= LIMITS['tool_calls_per_run']:
+        if not isinstance(raw_calls, list) or not raw_calls:
+            raise ValueError('expected nonempty tool calls')
+        if tool_count + len(raw_calls) > LIMITS['tool_calls_per_run']:
             raise ValueError('tool budget exhausted')
-        ids.add(call_id)
-        tool_count += 1
-        result = execute_tool(name, arguments)
-        record('tool', tool_count, {'id': call_id, 'name': name, 'arguments': arguments, 'result': result})
-        messages += [{'role': 'assistant', 'content': message.get('content'), 'tool_calls': [
-                      {'id': call_id, 'type': 'function', 'function': {
-                       'name': name, 'arguments': json.dumps(arguments)}}]},
-                     {'role': 'tool', 'tool_call_id': call_id, 'content': json.dumps(result)}]
+        validated, batch_ids = [], set()
+        # Some compatible gateways return multiple calls despite the parallel hint.
+        # Validate the complete batch before dispatch; execute only sequentially.
+        for call in raw_calls:
+            try:
+                call_id, name = call['id'], call['function']['name']
+                if (call['type'] != 'function' or not isinstance(call_id, str) or
+                        not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', call_id) or
+                        call_id in ids or call_id in batch_ids or name not in ('read', 'shell')):
+                    raise ValueError('invalid tool name or id')
+                arguments = provider.strict_json(call['function']['arguments'])
+                field = 'path' if name == 'read' else 'command'
+                if not isinstance(arguments, dict) or set(arguments) != {field} or not isinstance(arguments[field], str):
+                    raise ValueError('invalid tool arguments')
+                if name == 'shell' and arguments['command'] != 'python3 verify.py':
+                    raise ValueError('shell command not allowed')
+                if name == 'read':
+                    path = Path(arguments['path'])
+                    if not path.is_absolute(): path = Path('/workspace') / path
+                    if '..' in path.parts or not any(r in path.parents for r in (Path('/workspace'), Path('/skills'))):
+                        raise ValueError('read path not allowed')
+            except (KeyError, TypeError):
+                raise ValueError('malformed tool call') from None
+            batch_ids.add(call_id)
+            validated.append((call_id, name, arguments))
+        ids.update(batch_ids)
+        messages.append({'role': 'assistant', 'content': message.get('content'), 'tool_calls': [
+            {'id': call_id, 'type': 'function', 'function': {'name': name, 'arguments': json.dumps(arguments)}}
+            for call_id, name, arguments in validated]})
+        for call_id, name, arguments in validated:
+            if clock() - started >= LIMITS['run_deadline_seconds']:
+                raise ValueError('run deadline exceeded')
+            tool_count += 1
+            result = execute_tool(name, arguments)
+            record('tool', tool_count, {'id': call_id, 'name': name, 'arguments': arguments, 'result': result})
+            messages.append({'role': 'tool', 'tool_call_id': call_id, 'content': json.dumps(result)})
     raise ValueError('model request budget exhausted without final output')
 
 
@@ -238,10 +251,11 @@ def main():
     parser.add_argument('command', choices=['plan', 'run'])
     parser.add_argument('--root', type=Path, required=True)
     parser.add_argument('--authorize-plan-sha256')
+    parser.add_argument('--plan', type=Path, help='explicit new plan file; existing plans are never overwritten')
     args = parser.parse_args()
     try:
         config = provider.load_config()
-        plan_path = args.root / 'shakedown-plan.controller.json'
+        plan_path = args.plan or args.root / 'shakedown-plan.controller.json'
         if args.command == 'plan':
             plan = make_plan(args.root, config)
             provider.write_new(plan_path, plan)

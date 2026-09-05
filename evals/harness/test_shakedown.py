@@ -54,6 +54,43 @@ class AgentTests(unittest.TestCase):
                         lambda *x: None, lambda *x: response('read', {'path': 'a'}))
         self.assertEqual(len(tools), 1)
 
+    def test_batch_calls_execute_in_order_with_matching_results(self):
+        batch = response('read', {'path': 'proposal.md'})
+        batch['choices'][0]['message']['tool_calls'].append(
+            response('shell', {'command': 'python3 verify.py'}, 'call_2')['choices'][0]['message']['tool_calls'][0]
+        )
+        replies = iter([batch, response()])
+        seen, requests = [], []
+        def send(cfg, payload, timeout):
+            requests.append(json.loads(payload)); return next(replies)
+        result = s.run_agent(config(), 'p', '', lambda n, a: seen.append(n),
+                             lambda n: None, lambda *x: None, send)
+        self.assertEqual(seen, ['read', 'shell'])
+        self.assertEqual(result['tool_calls'], 2)
+        self.assertEqual(result['model_requests'], 2)
+        self.assertEqual([m['tool_call_id'] for m in requests[-1]['messages'][-2:]], ['call_1', 'call_2'])
+
+    def test_invalid_later_batch_member_prevents_all_dispatch(self):
+        for second in [response('shell', {'command': 'id'}, 'call_2'),
+                       response('read', {'path': 'a'}, 'call_1'),
+                       response('read', {'path': '/etc/passwd'}, 'call_2')]:
+            batch = response('read', {'path': 'a'})
+            batch['choices'][0]['message']['tool_calls'] += second['choices'][0]['message']['tool_calls']
+            dispatched = []
+            with self.assertRaises(ValueError):
+                s.run_agent(config(), 'p', '', lambda *x: dispatched.append(x),
+                            lambda n: None, lambda *x: None, lambda *x: batch)
+            self.assertEqual(dispatched, [])
+
+    def test_oversized_batch_consumes_no_tool_budget(self):
+        batch = response('read', {'path': 'a'})
+        batch['choices'][0]['message']['tool_calls'] *= 13
+        dispatched = []
+        with self.assertRaisesRegex(ValueError, 'tool budget'):
+            s.run_agent(config(), 'p', '', lambda *x: dispatched.append(x),
+                        lambda n: None, lambda *x: None, lambda *x: batch)
+        self.assertEqual(dispatched, [])
+
     def test_missing_usage_and_truncation_are_not_complete(self):
         for data in [response(usage=False), response()]:
             if 'usage' in data: data['choices'][0]['finish_reason'] = 'length'
