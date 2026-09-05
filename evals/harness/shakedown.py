@@ -151,8 +151,11 @@ class RequestPacer:
 
 class CostBudget:
     """Per-batch integer-microyuan reference estimate; not a gateway billing oracle."""
-    def __init__(self, persist, limit_micro_cny=3000000, carried=None):
+    def __init__(self, persist, limit_micro_cny=3000000, carried=None, completion_cap=None):
         self.persist, self.limit = persist, limit_micro_cny
+        self.completion_cap = LIMITS['completion_tokens_per_request'] if completion_cap is None else completion_cap
+        if type(self.completion_cap) is not int or not 1 <= self.completion_cap <= 4096:
+            raise ValueError('invalid completion reservation cap')
         self.spent = self.pending = self.requests = 0
         self.prompt_tokens = self.completion_tokens = 0
         self.carried_reservation = 0
@@ -184,7 +187,7 @@ class CostBudget:
         if self.pending:
             raise ValueError('unresolved cost reservation; no retry')
         estimate = ((len(payload) + 512) * COST_POLICY['input_cny_per_million'] +
-                    LIMITS['completion_tokens_per_request'] * COST_POLICY['output_cny_per_million'])
+                    self.completion_cap * COST_POLICY['output_cny_per_million'])
         if (self.requests >= LIMITS['model_requests_total'] or
                 self.spent + self.carried_reservation + estimate >= self.limit):
             self.persist('blocked', self.requests + 1, self.snapshot())
