@@ -109,6 +109,23 @@ an overrun is recorded and aborts execution. Do not present this as a hard input
 token cap or a monetary ceiling. Infrastructure inspection/cleanup time is
 outside the agent-loop timer.
 
+The user-authorized CNY 3 threshold is monitored across all eight runs by
+`CostBudget`, using integer microyuan and the official peak reference rates
+(CNY 3 / million input, CNY 9 / million output), without a cache discount. The
+rate source and date are bound into the plan. Before transmission, the controller
+journals a reservation based on request bytes plus 512 input-overhead tokens and
+the completion cap. It blocks a request that could reach the estimate threshold.
+After every response, reported usage replaces that reservation; reaching CNY 3
+or exceeding the request reservation stops the batch. Missing usage, timeouts,
+or journal failures also stop; unresolved reservations are never treated as zero.
+
+This is a reference-price monitor, not actual gateway billing telemetry. The
+assumed input-token bound and the gateway's fee/multiplier remain unverified;
+`actual_gateway_cost_cny` stays null. Each `cost-*-reserved/observed/blocked.json`
+and the summary/failure file records the monitor state. A response can cross a
+threshold before it is observed; no later request is sent. The CNY 3 scope is
+this newly authorized batch, excluding the earlier three diagnostic requests.
+
 Plans and attempt ledgers use exclusive creation and fsync before transmission.
 Rerunning the same plan is refused, even after interruption or success. An
 unknown outcome consumes authorization; inspect saved attempts and obtain new

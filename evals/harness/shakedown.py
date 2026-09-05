@@ -21,6 +21,11 @@ LIMITS = {'runs': 8, 'model_requests_per_run': 12, 'model_requests_total': 96,
           'request_bytes': 12288, 'tool_calls_per_run': 12,
           'run_deadline_seconds': 180, 'request_deadline_seconds': 30,
           'retries': 0, 'redirects': 0, 'delegation': 0}
+COST_POLICY = {'limit_cny': '3.000000', 'basis': 'official reference, peak rates, no cache discount',
+               'input_cny_per_million': 3, 'output_cny_per_million': 9,
+               'source': 'https://api-docs.deepseek.com/zh-cn/quick_start/pricing/',
+               'checked_date': '2026-09-05', 'actual_gateway_cost_cny': None,
+               'reservation_input': 'request bytes plus 512 overhead tokens; not a proven tokenizer bound'}
 TOOLS = [
     {'type': 'function', 'function': {'name': 'read', 'description':
      'Read one regular UTF-8 file under /workspace or the available /skills directory.',
@@ -57,7 +62,7 @@ def make_plan(root, config):
             if k in {'config_sha256', 'protocol', 'endpoint', 'model', 'declared_version',
                      'immutable_version_verified', 'tool_support_declared'}}, 'limits': LIMITS,
             'manifest_sha256': digest(manifest), 'offline_evidence_sha256': evidence_hashes,
-            'code_sha256': code, 'tools': TOOLS, 'cost_usd': None,
+            'code_sha256': code, 'tools': TOOLS, 'cost_usd': None, 'cost_policy': COST_POLICY,
             'evaluation_record': False, 'immutable_version_verified': False,
             'scoring_blockers': ['price/cost unknown', 'immutable version unverified',
                                  'provider input token upper bound unverified'],
@@ -79,7 +84,7 @@ def bounded_send(config, payload, seconds):
         signal.signal(signal.SIGALRM, previous)
 
 
-def parse_response(data):
+def parse_usage(data):
     try:
         usage = data['usage']
         keys = ('prompt_tokens', 'completion_tokens', 'total_tokens')
@@ -87,6 +92,58 @@ def parse_response(data):
             raise ValueError('invalid usage')
         if usage['prompt_tokens'] + usage['completion_tokens'] != usage['total_tokens']:
             raise ValueError('inconsistent usage')
+        return {k: usage[k] for k in keys}
+    except (KeyError, TypeError):
+        raise ValueError('missing or malformed usage') from None
+
+
+class CostBudget:
+    """Per-batch integer-microyuan reference estimate; not a gateway billing oracle."""
+    def __init__(self, persist, limit_micro_cny=3000000):
+        self.persist, self.limit = persist, limit_micro_cny
+        self.spent = self.pending = self.requests = 0
+        self.prompt_tokens = self.completion_tokens = 0
+
+    def snapshot(self):
+        return {'estimated_cost_cny': f'{self.spent / 1000000:.6f}',
+                'pending_reservation_cny': f'{self.pending / 1000000:.6f}',
+                'limit_cny': f'{self.limit / 1000000:.6f}',
+                'reserved_requests': self.requests,
+                'reported_prompt_tokens': self.prompt_tokens,
+                'reported_completion_tokens': self.completion_tokens,
+                'actual_gateway_cost_cny': None, 'basis': COST_POLICY['basis']}
+
+    def reserve(self, payload):
+        if self.pending:
+            raise ValueError('unresolved cost reservation; no retry')
+        estimate = ((len(payload) + 512) * COST_POLICY['input_cny_per_million'] +
+                    LIMITS['completion_tokens_per_request'] * COST_POLICY['output_cny_per_million'])
+        if self.requests >= LIMITS['model_requests_total'] or self.spent + estimate >= self.limit:
+            self.persist('blocked', self.requests + 1, self.snapshot())
+            raise ValueError('CNY budget would be reached; request not sent')
+        self.pending = estimate
+        self.requests += 1
+        self.persist('reserved', self.requests, self.snapshot())
+
+    def observe(self, data):
+        usage = parse_usage(data)
+        if not self.pending:
+            raise ValueError('response without cost reservation')
+        actual_estimate = (usage['prompt_tokens'] * COST_POLICY['input_cny_per_million'] +
+                           usage['completion_tokens'] * COST_POLICY['output_cny_per_million'])
+        exceeded_reservation = actual_estimate > self.pending
+        self.spent += actual_estimate
+        self.prompt_tokens += usage['prompt_tokens']
+        self.completion_tokens += usage['completion_tokens']
+        self.pending = 0
+        self.persist('observed', self.requests, self.snapshot())
+        if self.spent >= self.limit or exceeded_reservation:
+            raise ValueError('CNY estimate reached limit or exceeded request reservation')
+
+
+def parse_response(data):
+    try:
+        usage = parse_usage(data)
         choices = data['choices']
         if len(choices) != 1 or choices[0]['message']['role'] != 'assistant':
             raise ValueError('invalid choices')
@@ -96,13 +153,13 @@ def parse_response(data):
         content = choice['message'].get('content')
         if content is not None and not isinstance(content, str):
             raise ValueError('invalid assistant text')
-        return choice, {k: usage[k] for k in keys}
+        return choice, usage
     except (KeyError, TypeError, IndexError, AttributeError):
         raise ValueError('malformed response or missing usage') from None
 
 
 def run_agent(config, prompt, discovery, execute_tool, before_send, record,
-              send=bounded_send, clock=time.monotonic):
+              send=bounded_send, clock=time.monotonic, cost_budget=None):
     started = clock()
     messages = [{'role': 'system', 'content':
         'Work within /workspace using the available read and shell tools. Do not edit files. '
@@ -121,11 +178,15 @@ def run_agent(config, prompt, discovery, execute_tool, before_send, record,
             raise ValueError('request byte budget exhausted')
         if tokens + len(payload) + LIMITS['completion_tokens_per_request'] > 16000:
             raise ValueError('conservative token dispatch guard exhausted')
+        if cost_budget is not None:
+            cost_budget.reserve(payload)
         before_send(calls + 1)
         calls += 1
         data = send(config, payload, min(remaining, LIMITS['request_deadline_seconds']))
         # Persist full response locally (redacted by controller), even if parsing fails.
         record('response', calls, data)
+        if cost_budget is not None:
+            cost_budget.observe(data)
         choice, usage = parse_response(data)
         tokens += usage['total_tokens']
         if tokens > 16000 or usage['completion_tokens'] > LIMITS['completion_tokens_per_request']:
@@ -200,6 +261,11 @@ def execute(root, config, approved, authorization):
     finally: os.close(fd)
     manifest = isolation.load_manifest(root)
     completed = []
+    def cost_event(kind, number, value):
+        provider.write_new(ledger / f'cost-{number:03d}-{kind}.json', value)
+        if kind == 'observed':
+            print('reference cost estimate CNY ' + value['estimated_cost_cny'] + '/3.000000', flush=True)
+    cost_budget = CostBudget(cost_event)
     try:
         for a in manifest['assignments']:
             run = ledger / a['target']
@@ -226,7 +292,7 @@ def execute(root, config, approved, authorization):
                                lambda n, v: isolation.invoke(root, a, {'name': n, 'arguments': v}),
                                lambda n: provider.write_new(run / f'attempt-{n}.json',
                                           {'attempt': n, 'time': time.time(), 'outcome': 'unknown_before_send'}),
-                               persist)
+                               persist, cost_budget=cost_budget)
             after = isolation.invoke(root, a, {'operation': 'inspect'})
             isolation.check_receipt(after, a)
             if after['receipt'] != observed['receipt']:
@@ -238,10 +304,10 @@ def execute(root, config, approved, authorization):
             print('diagnostic agent completed: ' + a['target'], flush=True)
     except BaseException:
         provider.write_new(ledger / 'failure.json', {'outcome': 'failed_or_unknown_no_retry',
-                           'completed': completed, 'evaluation_record': False})
+                           'completed': completed, 'evaluation_record': False, 'cost_monitor': cost_budget.snapshot()})
         raise ValueError('shakedown stopped; inspect attempt ledger; no retry') from None
     result = {'completed_runs': len(completed), 'runs': completed, 'evaluation_record': False,
-              'cost_usd': None, 'immutable_version_verified': False}
+              'cost_usd': None, 'immutable_version_verified': False, 'cost_monitor': cost_budget.snapshot()}
     provider.write_new(ledger / 'summary.json', result)
     return result
 
@@ -260,7 +326,7 @@ def main():
             plan = make_plan(args.root, config)
             provider.write_new(plan_path, plan)
             print(json.dumps({'plan': str(plan_path), 'plan_sha256': digest(plan), 'limits': LIMITS,
-                              'model': plan['provider']['model'], 'cost_usd': None}, indent=2))
+                              'model': plan['provider']['model'], 'cost_usd': None, 'cost_policy': COST_POLICY}, indent=2))
         else:
             approved = provider.strict_json(plan_path.read_bytes())
             print(json.dumps(execute(args.root, config, approved, args.authorize_plan_sha256), indent=2))

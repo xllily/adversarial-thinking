@@ -149,4 +149,70 @@ class AgentTests(unittest.TestCase):
             self.assertTrue((next(Path(tmp).iterdir()) / 'failure.json').exists())
 
 
+class CostBudgetTests(unittest.TestCase):
+    def test_reservation_blocks_before_attempt_or_network(self):
+        events, attempts, sends = [], [], []
+        budget = s.CostBudget(lambda *x: events.append(x), limit_micro_cny=1)
+        with self.assertRaisesRegex(ValueError, 'request not sent'):
+            s.run_agent(config(), 'p', '', lambda *x: {}, attempts.append,
+                        lambda *x: None, lambda *x: sends.append(x), cost_budget=budget)
+        self.assertEqual(attempts, [])
+        self.assertEqual(sends, [])
+        self.assertEqual(events[-1][0], 'blocked')
+
+    def test_accumulates_across_agent_runs_at_peak_rates(self):
+        budget = s.CostBudget(lambda *x: None)
+        for _ in range(2):
+            s.run_agent(config(), 'p', '', lambda *x: {}, lambda *x: None,
+                        lambda *x: None, lambda *x: response(), cost_budget=budget)
+        self.assertEqual(budget.spent, 2 * (100 * 3 + 20 * 9))
+        self.assertEqual(budget.snapshot()['estimated_cost_cny'], '0.000960')
+        self.assertIsNone(budget.snapshot()['actual_gateway_cost_cny'])
+        self.assertEqual(budget.pending, 0)
+
+    def test_missing_usage_or_timeout_keeps_unknown_reservation(self):
+        for missing in [True, False]:
+            budget = s.CostBudget(lambda *x: None)
+            attempts = []
+            def send(*args):
+                if missing: return response(usage=False)
+                raise TimeoutError()
+            with self.assertRaises((ValueError, TimeoutError)):
+                s.run_agent(config(), 'p', '', lambda *x: {}, attempts.append,
+                            lambda *x: None, send, cost_budget=budget)
+            self.assertEqual(attempts, [1])
+            self.assertGreater(budget.pending, 0)
+            with self.assertRaisesRegex(ValueError, 'unresolved'):
+                budget.reserve(b'{}')
+
+    def test_overshoot_records_cost_and_sends_no_followup(self):
+        budget = s.CostBudget(lambda *x: None)
+        data = response()
+        data['usage'] = {'prompt_tokens': 1000000, 'completion_tokens': 20, 'total_tokens': 1000020}
+        attempts = []
+        with self.assertRaisesRegex(ValueError, 'CNY estimate reached'):
+            s.run_agent(config(), 'p', '', lambda *x: {}, attempts.append,
+                        lambda *x: None, lambda *x: data, cost_budget=budget)
+        self.assertEqual(attempts, [1])
+        self.assertEqual(budget.snapshot()['estimated_cost_cny'], '3.000180')
+
+    def test_truncated_response_usage_still_counts(self):
+        budget = s.CostBudget(lambda *x: None)
+        data = response(); data['choices'][0]['finish_reason'] = 'length'
+        with self.assertRaisesRegex(ValueError, 'incomplete'):
+            s.run_agent(config(), 'p', '', lambda *x: {}, lambda *x: None,
+                        lambda *x: None, lambda *x: data, cost_budget=budget)
+        self.assertEqual(budget.spent, 480)
+        self.assertEqual(budget.pending, 0)
+
+    def test_cost_journal_failure_prevents_request(self):
+        def disk_full(*args): raise OSError('disk full')
+        budget = s.CostBudget(disk_full)
+        with patch.object(s, 'bounded_send') as send:
+            with self.assertRaises(OSError):
+                s.run_agent(config(), 'p', '', lambda *x: {}, lambda *x: None,
+                            lambda *x: None, send, cost_budget=budget)
+            send.assert_not_called()
+
+
 if __name__ == '__main__': unittest.main()
