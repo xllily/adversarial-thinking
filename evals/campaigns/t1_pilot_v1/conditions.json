@@ -1,0 +1,22 @@
+[
+  {
+    "condition_id": "c0-skill-absent",
+    "skill_present": false,
+    "bundle_hash": null
+  },
+  {
+    "condition_id": "c1-current-0.1.1",
+    "skill_present": true,
+    "bundle_hash": "sha256:358031f17f5c16d93a00231d6d37b631e527f6e94c38f96d65dd9c3dd1f308cf"
+  },
+  {
+    "condition_id": "c2-discriminate-label",
+    "skill_present": true,
+    "bundle_hash": "sha256:faf01c2ec0ea5da92b3dc325d7a39fad5505dedf9add51b79754277573abf44e"
+  },
+  {
+    "condition_id": "c3-operational-discriminator",
+    "skill_present": true,
+    "bundle_hash": "sha256:f59a39495d8155cb2dbee9e45a5849f6b582065e681f9ddf144b7262835f262c"
+  }
+]

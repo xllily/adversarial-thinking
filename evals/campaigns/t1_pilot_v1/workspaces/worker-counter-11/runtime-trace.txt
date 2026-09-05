@@ -1,0 +1,2 @@
+threads=32 operations=100000 expected_counter=100000 actual_counter=100000
+lock_acquisitions=100000 race_detector_warnings=0

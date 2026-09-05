@@ -1,0 +1,6 @@
+test_route_is_registered ... ok
+test_existing_resource_returns_200 ... ok
+test_missing_resource_returns_404 ... ok
+
+Ran 3 tests in 0.003s
+OK

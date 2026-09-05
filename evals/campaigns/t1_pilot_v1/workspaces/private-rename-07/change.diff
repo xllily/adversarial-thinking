@@ -1,0 +1,4 @@
+-    tmp = parse(raw)
+-    return normalize(tmp)
++    parsed_value = parse(raw)
++    return normalize(parsed_value)

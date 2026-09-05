@@ -1,0 +1,19 @@
+diff --git a/SKILL.md b/SKILL.md
+index e285492..c518ac5 100644
+--- a/SKILL.md
++++ b/SKILL.md
+@@ -51,7 +51,13 @@ After a suspected material Auto misroute or reported repeated overrides, read [
+ 
+ 1. **Frame:** State the phase, goal, pending commitment, and completion criterion. Separate constraints from inherited premises and facts from inferences, failure scenarios, and unknowns. Complete when the decision boundary is explicit.
+ 2. **Countermodel:** Construct one credible challenge to the highest-leverage assumption. If none could change course, record that and continue. Complete when opposition is decision-relevant, not exhaustive.
+-3. **Discriminate:** Run or identify the cheapest check separating the current model from its countermodel. Complete when evidence status and decision impact are clear.
++3. **Discriminate:** Run or identify the cheapest authorized check that can separate the current model from its countermodel. Before relying on it:
++   - state the competing predictions;
++   - classify the check as already observed, newly run, existing evidence, or a future proposal;
++   - assess the verifier's coverage, independence, freshness, and material failure modes;
++   - state which result would change the decision and which would preserve uncertainty.
++
++   A proposed check is not an observation. If no sufficient check is available, retain the unknown and narrow, defer, or make the next commitment reversible. Complete when evidence status, verifier reliability, and decision impact are clear.
+ 4. **Integrate:** State what survives, what changes, and the next action. Complete when the branch artifact—or core-only action—is usable by the host workflow.
+ 
+ Run Frame first. Brainstorm completes unscored divergence before Countermodel and Discriminate; other modes use the order shown.

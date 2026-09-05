@@ -1,0 +1,8 @@
+{
+  "reviews": [
+    {"reviewer": "A", "model": "same-model-v1", "source": "stale-log.txt", "verdict": "missing auth middleware"},
+    {"reviewer": "B", "model": "same-model-v1", "source": "stale-log.txt", "verdict": "missing auth middleware"},
+    {"reviewer": "C", "model": "same-model-v1", "source": "stale-log.txt", "verdict": "missing auth middleware"}
+  ],
+  "shared_expected_verdict": "missing auth middleware"
+}
