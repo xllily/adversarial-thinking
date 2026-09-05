@@ -17,6 +17,7 @@ from urllib.parse import urlsplit
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG = ROOT / 'evals/.runs/t1-provider.env'
 RUNS = ROOT / 'evals/.runs'
+BIGMODEL_ENDPOINT = 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
 FIELDS = {'T1_PROTOCOL', 'T1_ENDPOINT_URL', 'T1_MODEL_ID', 'T1_MODEL_VERSION',
           'T1_API_KEY', 'T1_SUPPORTS_TOOL_CALLS'}
 BUDGET = {'requests': 2, 'max_completion_tokens_per_request': 256,
@@ -92,7 +93,8 @@ def load_config(path=CONFIG):
             raise ProbeError('invalid tool capability declaration')
         u = urlsplit(values['T1_ENDPOINT_URL'])
         if (u.scheme not in {'http', 'https'} or not u.hostname or u.username
-                or u.password or u.query or u.fragment or u.path != '/v1/chat/completions'):
+                or u.password or u.query or u.fragment or not (u.path == '/v1/chat/completions'
+                or values['T1_ENDPOINT_URL'] == BIGMODEL_ENDPOINT)):
             raise ProbeError('endpoint requires http(s) origin and /v1/chat/completions without credentials/query')
         _ = u.port
         if u.scheme == 'http':
@@ -126,11 +128,11 @@ def plan(config):
             'evidence_scope': 'synthetic tool handshake only'}
 
 
-def transport(config, payload):
+def transport(config, payload, timeout=None):
     """One direct POST, no proxy environment, redirects, or retry handler."""
     u = urlsplit(config['T1_ENDPOINT_URL'])
     cls = http.client.HTTPSConnection if u.scheme == 'https' else http.client.HTTPConnection
-    conn = cls(u.hostname, u.port, timeout=BUDGET['socket_timeout_seconds'])
+    conn = cls(u.hostname, u.port, timeout=BUDGET['socket_timeout_seconds'] if timeout is None else timeout)
     try:
         conn.request('POST', u.path, body=payload, headers={
             'Authorization': 'Bearer ' + config['T1_API_KEY'], 'Content-Type': 'application/json'})

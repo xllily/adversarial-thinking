@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Bounded diagnostic agent runner for the eight T1 isolation targets."""
 import argparse
+from decimal import Decimal, ROUND_CEILING
 import hashlib
 import json
 from pathlib import Path
@@ -106,7 +107,7 @@ def bounded_send(config, payload, seconds):
     previous = signal.signal(signal.SIGALRM, alarm)
     signal.setitimer(signal.ITIMER_REAL, seconds)
     try:
-        return provider.transport(config, payload)
+        return provider.transport(config, payload, timeout=seconds)
     finally:
         signal.setitimer(signal.ITIMER_REAL, 0)
         signal.signal(signal.SIGALRM, previous)
@@ -151,8 +152,14 @@ class RequestPacer:
 
 class CostBudget:
     """Per-batch integer-microyuan reference estimate; not a gateway billing oracle."""
-    def __init__(self, persist, limit_micro_cny=3000000, carried=None, completion_cap=None):
+    def __init__(self, persist, limit_micro_cny=3000000, carried=None, completion_cap=None, policy=None, carried_policy=None):
         self.persist, self.limit = persist, limit_micro_cny
+        self.policy = dict(COST_POLICY if policy is None else policy)
+        self.rates = [Decimal(str(self.policy[k])) for k in
+                      ('input_cny_per_million', 'output_cny_per_million')]
+        if any(not r.is_finite() or r <= 0 for r in self.rates):
+            raise ValueError('invalid reference rates')
+        self.carried_policy = carried_policy
         self.completion_cap = LIMITS['completion_tokens_per_request'] if completion_cap is None else completion_cap
         if type(self.completion_cap) is not int or not 1 <= self.completion_cap <= 4096:
             raise ValueError('invalid completion reservation cap')
@@ -160,7 +167,7 @@ class CostBudget:
         self.prompt_tokens = self.completion_tokens = 0
         self.carried_reservation = 0
         if carried is not None:
-            if (carried['basis'] != COST_POLICY['basis'] or
+            if (carried['basis'] != (carried_policy or self.policy)['basis'] or
                     micro_cny(carried['limit_cny']) != self.limit):
                 raise ValueError('previous cost policy mismatch')
             self.spent = micro_cny(carried['estimated_cost_cny'])
@@ -181,13 +188,15 @@ class CostBudget:
                 'reserved_requests': self.requests,
                 'reported_prompt_tokens': self.prompt_tokens,
                 'reported_completion_tokens': self.completion_tokens,
-                'actual_gateway_cost_cny': None, 'basis': COST_POLICY['basis']}
+                'actual_gateway_cost_cny': None, 'basis': self.policy['basis']}
+
+    def estimate(self, prompt, completion):
+        return int((prompt * self.rates[0] + completion * self.rates[1]).to_integral_value(rounding=ROUND_CEILING))
 
     def reserve(self, payload):
         if self.pending:
             raise ValueError('unresolved cost reservation; no retry')
-        estimate = ((len(payload) + 512) * COST_POLICY['input_cny_per_million'] +
-                    self.completion_cap * COST_POLICY['output_cny_per_million'])
+        estimate = self.estimate(len(payload) + 512, self.completion_cap)
         if (self.requests >= LIMITS['model_requests_total'] or
                 self.spent + self.carried_reservation + estimate >= self.limit):
             self.persist('blocked', self.requests + 1, self.snapshot())
@@ -200,8 +209,7 @@ class CostBudget:
         usage = parse_usage(data)
         if not self.pending:
             raise ValueError('response without cost reservation')
-        actual_estimate = (usage['prompt_tokens'] * COST_POLICY['input_cny_per_million'] +
-                           usage['completion_tokens'] * COST_POLICY['output_cny_per_million'])
+        actual_estimate = self.estimate(usage['prompt_tokens'], usage['completion_tokens'])
         exceeded_reservation = actual_estimate > self.pending
         self.spent += actual_estimate
         self.prompt_tokens += usage['prompt_tokens']
@@ -230,7 +238,8 @@ def parse_response(data):
 
 
 def run_agent(config, prompt, discovery, execute_tool, before_send, record,
-              send=bounded_send, clock=time.monotonic, cost_budget=None, pacer=None):
+              send=bounded_send, clock=time.monotonic, cost_budget=None, pacer=None, limits=None, payload_options=None):
+    limits = LIMITS if limits is None else limits
     started = clock()
     paused = 0
     def active_elapsed():
@@ -241,30 +250,37 @@ def run_agent(config, prompt, discovery, execute_tool, before_send, record,
         'Use their instructions when applicable. Stop with a final answer when evidence is sufficient.\n'
         + discovery}, {'role': 'user', 'content': prompt}]
     calls, tokens, tool_count, ids = 0, 0, 0, set()
-    while calls < LIMITS['model_requests_per_run']:
-        remaining = LIMITS['run_deadline_seconds'] - active_elapsed()
+    while calls < limits['model_requests_per_run']:
+        remaining = limits['run_deadline_seconds'] - active_elapsed()
         if remaining <= 0: raise ValueError('run deadline exceeded')
-        payload = provider.encode({'model': config['T1_MODEL_ID'], 'messages': messages,
+        request = {'model': config['T1_MODEL_ID'], 'messages': messages,
                                   'tools': TOOLS, 'tool_choice': 'auto', 'parallel_tool_calls': False,
-                                  'max_completion_tokens': LIMITS['completion_tokens_per_request'],
-                                  'n': 1, 'stream': False})
-        if len(payload) > LIMITS['request_bytes']:
+                                  'max_completion_tokens': limits['completion_tokens_per_request'],
+                                  'n': 1, 'stream': False}
+        if payload_options:
+            request.pop('max_completion_tokens')
+            request.update(payload_options)
+            if config['T1_ENDPOINT_URL'] == provider.BIGMODEL_ENDPOINT:
+                request.pop('n')
+                request.pop('parallel_tool_calls')
+        payload = provider.encode(request)
+        if len(payload) > limits['request_bytes']:
             raise ValueError('request byte budget exhausted')
-        if tokens + len(payload) + LIMITS['completion_tokens_per_request'] > 16000:
+        if tokens + len(payload) + limits['completion_tokens_per_request'] > limits['reported_total_token_stop_threshold_per_run']:
             raise ValueError('conservative token dispatch guard exhausted')
         if pacer is not None:
             waited = pacer.wait()
             paused += waited
             record('pacing', calls + 1, {'waited_seconds': waited,
-                                        'minimum_gap_seconds': LIMITS['request_gap_seconds']})
-        remaining = LIMITS['run_deadline_seconds'] - active_elapsed()
+                                        'minimum_gap_seconds': limits['request_gap_seconds']})
+        remaining = limits['run_deadline_seconds'] - active_elapsed()
         if remaining <= 0: raise ValueError('run deadline exceeded')
         if cost_budget is not None:
             cost_budget.reserve(payload)
         before_send(calls + 1)
         calls += 1
         try:
-            data = send(config, payload, min(remaining, LIMITS['request_deadline_seconds']))
+            data = send(config, payload, min(remaining, limits['request_deadline_seconds']))
         finally:
             if pacer is not None: pacer.finished()
         # Persist full response locally (redacted by controller), even if parsing fails.
@@ -273,9 +289,9 @@ def run_agent(config, prompt, discovery, execute_tool, before_send, record,
             cost_budget.observe(data)
         choice, usage = parse_response(data)
         tokens += usage['total_tokens']
-        if tokens > 16000 or usage['completion_tokens'] > LIMITS['completion_tokens_per_request']:
+        if tokens > limits['reported_total_token_stop_threshold_per_run'] or usage['completion_tokens'] > limits['completion_tokens_per_request']:
             raise ValueError('reported token budget exceeded')
-        if active_elapsed() >= LIMITS['run_deadline_seconds']:
+        if active_elapsed() >= limits['run_deadline_seconds']:
             raise ValueError('run deadline exceeded')
         message = choice['message']
         if choice['finish_reason'] == 'stop':
@@ -290,7 +306,7 @@ def run_agent(config, prompt, discovery, execute_tool, before_send, record,
         raw_calls = message.get('tool_calls')
         if not isinstance(raw_calls, list) or not raw_calls:
             raise ValueError('expected nonempty tool calls')
-        if tool_count + len(raw_calls) > LIMITS['tool_calls_per_run']:
+        if tool_count + len(raw_calls) > limits['tool_calls_per_run']:
             raise ValueError('tool budget exhausted')
         validated, batch_ids = [], set()
         # Some compatible gateways return multiple calls despite the parallel hint.
@@ -321,11 +337,17 @@ def run_agent(config, prompt, discovery, execute_tool, before_send, record,
         messages.append({'role': 'assistant', 'content': message.get('content'), 'tool_calls': [
             {'id': call_id, 'type': 'function', 'function': {'name': name, 'arguments': json.dumps(arguments)}}
             for call_id, name, arguments in validated]})
+        if 'reasoning_content' in message:
+            if not isinstance(message['reasoning_content'], str):
+                raise ValueError('invalid reasoning replay')
+            messages[-1]['reasoning_content'] = message['reasoning_content']
         for call_id, name, arguments in validated:
-            if active_elapsed() >= LIMITS['run_deadline_seconds']:
+            if active_elapsed() >= limits['run_deadline_seconds']:
                 raise ValueError('run deadline exceeded')
             tool_count += 1
             result = execute_tool(name, arguments)
+            if isinstance(result, dict) and 'error' in result:
+                raise ValueError('tool execution failed')
             record('tool', tool_count, {'id': call_id, 'name': name, 'arguments': arguments, 'result': result})
             messages.append({'role': 'tool', 'tool_call_id': call_id, 'content': json.dumps(result)})
     raise ValueError('model request budget exhausted without final output')
