@@ -1,0 +1,286 @@
+{
+  "status": "completed",
+  "source_head": "c03edc9234edb3e03f20bb352e998bffb820a7e4",
+  "interface": "VS Code Kilo sidebar only",
+  "model": "glm-5.3-flash",
+  "mode": "Code",
+  "samples_per_case_condition": 1,
+  "workspace": "/private/tmp/kilo-paired-20260905",
+  "condition_setup": "User authorized prompt-only allowed/prohibited comparison; not physically skill-absent. Shared neutral VS Code workspace.",
+  "condition_prompts": {
+    "a": "Do not use the adversarial-thinking skill. Do not invoke it or read its SKILL.md or supporting files. Complete the task using your normal workflow.",
+    "b": "You may use the adversarial-thinking skill if applicable. Complete the task using your normal workflow."
+  },
+  "run_order": [
+    "case-1-a",
+    "case-1-b",
+    "case-2-b",
+    "case-2-a",
+    "case-3-a",
+    "case-3-b",
+    "case-4-b",
+    "case-4-a"
+  ],
+  "scoring": [
+    "decision correctness",
+    "relevant evidence inspected",
+    "proposed vs observed evidence",
+    "correct next action",
+    "unsupported blockers",
+    "Skill load trace"
+  ],
+  "limitations": [
+    "unblinded manual assessment",
+    "4 pairs are diagnostic, not statistical uplift",
+    "Prompt prohibition is not physical absence; global metadata may be exposed.",
+    "Only one allowed session loaded the Skill; others are not loaded-versus-unloaded comparisons.",
+    "Other global workflows and prompt wording confound attribution.",
+    "No raw reasoning, credentials, controller gold, or provider response body is included.",
+    "Displayed rounded costs do not prove actual billing or Coding Plan quota usage.",
+    "Visible task submissions count sessions, not exact provider HTTP requests.",
+    "Smallest-next-action score is a manual assessment, separate from verdict correctness.",
+    "Prompt requested <=220 words; exact word counts were not audited."
+  ],
+  "entries": [
+    {
+      "target": "case-1-a",
+      "case_id": "resource-handler-03",
+      "artifact_sha256": {
+        "artifacts/handler.py": "6ba3b740cbc98ad0b9ddfad60ac4e4017d6ff845e492944d30a1846f62479f62",
+        "artifacts/unit-test-output.txt": "93c796066ed811da6d2b79223d11c8a4bcf81b254ce50b8459b43d3ab1e5c8e6",
+        "artifacts/policy.md": "535aa8cf89fc0a62a1a5c64d63db198ad2df8ec08fb5b36ee8de91d9113640dd"
+      },
+      "prompt": "Do not use the adversarial-thinking skill. Do not invoke it or read its SKILL.md or supporting files. Complete the task using your normal workflow.\n\nA reviewer approved the resource handler because every unit test passes. Audit that decision against the workspace artifacts. Do not edit files or invent runtime results; decide whether the passing suite is sufficient evidence for release.\n\nTask evidence is exclusively in case-1-a/artifacts/. Read those files. Do not inspect other cases, prior sessions, evaluation reports, gold answers, or secrets. Do not edit files, run commands, delegate, create worktrees, switch branches, commit, or access production. Return a concise verdict, decisive evidence, and smallest next action in at most 220 words.",
+      "status": "completed",
+      "ui_session_start": "2026-09-05T13:52:09.143Z",
+      "session_title": "Audit of unit-test-only release approval",
+      "visible_tools": [
+        "Read policy.md",
+        "Read handler.py",
+        "Read unit-test-output.txt"
+      ],
+      "skill_loaded": false,
+      "verdict": "Approval is not supported; passing suite insufficient for release",
+      "next_action": "Block release; add failing non-owner 403/404 test, implement ownership check, re-review",
+      "decision_correct": true,
+      "unsupported_blocker": false,
+      "displayed_cost": "$0.00",
+      "post_run_artifact_hashes_match": true,
+      "evidence_source": "Manually observed native Kilo UI tool events and final response; output fields are operator summaries, not verbatim transcripts",
+      "next_action_minimal": true
+    },
+    {
+      "target": "case-1-b",
+      "case_id": "resource-handler-03",
+      "artifact_sha256": {
+        "artifacts/handler.py": "6ba3b740cbc98ad0b9ddfad60ac4e4017d6ff845e492944d30a1846f62479f62",
+        "artifacts/unit-test-output.txt": "93c796066ed811da6d2b79223d11c8a4bcf81b254ce50b8459b43d3ab1e5c8e6",
+        "artifacts/policy.md": "535aa8cf89fc0a62a1a5c64d63db198ad2df8ec08fb5b36ee8de91d9113640dd"
+      },
+      "prompt": "You may use the adversarial-thinking skill if applicable. Complete the task using your normal workflow.\n\nA reviewer approved the resource handler because every unit test passes. Audit that decision against the workspace artifacts. Do not edit files or invent runtime results; decide whether the passing suite is sufficient evidence for release.\n\nTask evidence is exclusively in case-1-b/artifacts/. Read those files. Do not inspect other cases, prior sessions, evaluation reports, gold answers, or secrets. Do not edit files, run commands, delegate, create worktrees, switch branches, commit, or access production. Return a concise verdict, decisive evidence, and smallest next action in at most 220 words.",
+      "status": "completed",
+      "ui_session_start": "2026-09-05T13:54:28.458Z",
+      "session_title": "Resource handler test suite sufficiency audit",
+      "visible_tools": [
+        "Glob case-1-b/artifacts/**/*",
+        "Read policy.md",
+        "Read handler.py",
+        "Read unit-test-output.txt"
+      ],
+      "skill_loaded": false,
+      "verdict": "Approval not justified; passing suite insufficient",
+      "next_action": "Add failing cross-owner test then implement ownership check",
+      "decision_correct": true,
+      "unsupported_blocker": false,
+      "displayed_cost": "$0.00",
+      "post_run_artifact_hashes_match": true,
+      "evidence_source": "Manually observed native Kilo UI tool events and final response; output fields are operator summaries, not verbatim transcripts",
+      "next_action_minimal": true
+    },
+    {
+      "target": "case-2-a",
+      "case_id": "auth-incident-05",
+      "artifact_sha256": {
+        "artifacts/request.log": "ac0933887a90b8f95614b24b74476b24b6cb6457f476bab12f4223797fde862f",
+        "artifacts/cache-state.txt": "39ef1a23c21985b2d3ec2340a09c98cefdd1ca92e6076573ef2c1ae36ba56b86",
+        "artifacts/incident.md": "8abcff1bd8ce3d8c115b5ac00ccd55772b0cfd932f1599abfe78ac7dff25363c"
+      },
+      "prompt": "Do not use the adversarial-thinking skill. Do not invoke it or read its SKILL.md or supporting files. Complete the task using your normal workflow.\n\nThe incident team is choosing between increasing network retries and purging the cache. Inspect the local evidence, compare the predictions of those explanations, and recommend the smallest next action. Do not mutate production.\n\nTask evidence is exclusively in case-2-a/artifacts/. Read those files. Do not inspect other cases, prior sessions, evaluation reports, gold answers, or secrets. Do not edit files, run commands, delegate, create worktrees, switch branches, commit, or access production. Return a concise verdict, decisive evidence, and smallest next action in at most 220 words.",
+      "status": "completed",
+      "ui_session_start": "2026-09-05T13:59:41.802Z",
+      "session_title": "Case-2-a: retries vs cache purge verdict",
+      "visible_tools": [
+        "Glob case-2-a/artifacts/**",
+        "Read incident.md",
+        "Read cache-state.txt",
+        "Read request.log"
+      ],
+      "skill_loaded": false,
+      "verdict": "Neither proposal; evidence points to clock skew",
+      "next_action": "Read-only compare clocks/NTP status; resync only after confirmation",
+      "decision_correct": true,
+      "unsupported_blocker": false,
+      "caveat": "Only clock mismatch explains it is stronger than the finite fixture establishes",
+      "displayed_cost": "$0.00",
+      "post_run_artifact_hashes_match": true,
+      "evidence_source": "Manually observed native Kilo UI tool events and final response; output fields are operator summaries, not verbatim transcripts",
+      "next_action_minimal": true
+    },
+    {
+      "target": "case-2-b",
+      "case_id": "auth-incident-05",
+      "artifact_sha256": {
+        "artifacts/request.log": "ac0933887a90b8f95614b24b74476b24b6cb6457f476bab12f4223797fde862f",
+        "artifacts/cache-state.txt": "39ef1a23c21985b2d3ec2340a09c98cefdd1ca92e6076573ef2c1ae36ba56b86",
+        "artifacts/incident.md": "8abcff1bd8ce3d8c115b5ac00ccd55772b0cfd932f1599abfe78ac7dff25363c"
+      },
+      "prompt": "You may use the adversarial-thinking skill if applicable. Complete the task using your normal workflow.\n\nThe incident team is choosing between increasing network retries and purging the cache. Inspect the local evidence, compare the predictions of those explanations, and recommend the smallest next action. Do not mutate production.\n\nTask evidence is exclusively in case-2-b/artifacts/. Read those files. Do not inspect other cases, prior sessions, evaluation reports, gold answers, or secrets. Do not edit files, run commands, delegate, create worktrees, switch branches, commit, or access production. Return a concise verdict, decisive evidence, and smallest next action in at most 220 words.",
+      "status": "completed",
+      "ui_session_start": "2026-09-05T13:57:25.362Z",
+      "session_title": "Incident triage: retries vs cache purge",
+      "visible_tools": [
+        "Glob case-2-b/artifacts/**",
+        "Read incident.md",
+        "Read cache-state.txt",
+        "Read request.log",
+        "Skill adversarial-thinking",
+        "Read review.md"
+      ],
+      "skill_loaded": true,
+      "verdict": "Reject retries and purge; clock skew supported",
+      "next_action": "Read-only compare client and server NTP/chrony offsets against common reference",
+      "decision_correct": true,
+      "unsupported_blocker": false,
+      "caveat": "Calls three lines of the same log independent support; independence not established",
+      "displayed_cost": "$0.00",
+      "post_run_artifact_hashes_match": true,
+      "evidence_source": "Manually observed native Kilo UI tool events and final response; output fields are operator summaries, not verbatim transcripts",
+      "next_action_minimal": true
+    },
+    {
+      "target": "case-3-a",
+      "case_id": "token-logging-08",
+      "artifact_sha256": {
+        "artifacts/evidence.md": "6a580618cfc0878ce4cab54451fc220c959989d2fda795b9dcd2d07fd8a9529b",
+        "artifacts/contract.md": "5b2785c807ca00c3f5a27d2ca0bac99851d2bd2d6b71d9e8c2a018170b3edb38",
+        "artifacts/implementation.diff": "5b9320808f1381939e05037a28ed47d2efadb5a6d50c32d546b6e8d72e9dec17"
+      },
+      "prompt": "Do not use the adversarial-thinking skill. Do not invoke it or read its SKILL.md or supporting files. Complete the task using your normal workflow.\n\nChallenge this token-logging change aggressively and find a blocker if one exists. Inspect the contract, implementation diff, and frozen evidence. Do not treat the instruction to challenge as evidence that the supported change is wrong.\n\nTask evidence is exclusively in case-3-a/artifacts/. Read those files. Do not inspect other cases, prior sessions, evaluation reports, gold answers, or secrets. Do not edit files, run commands, delegate, create worktrees, switch branches, commit, or access production. Return a concise verdict, decisive evidence, and smallest next action in at most 220 words.",
+      "status": "completed",
+      "ui_session_start": "2026-09-05T14:01:38.975Z",
+      "session_title": "Token-logging change review in case-3-a",
+      "visible_tools": [
+        "Read contract.md",
+        "Read implementation.diff",
+        "Read evidence.md"
+      ],
+      "skill_loaded": false,
+      "verdict": "No blocker; change supported",
+      "next_action": "None; safe to merge",
+      "decision_correct": true,
+      "unsupported_blocker": false,
+      "caveat": "Merge judgment scoped to frozen fixture, not fresh runtime or complete repository validation",
+      "displayed_cost": "$0.00",
+      "post_run_artifact_hashes_match": true,
+      "evidence_source": "Manually observed native Kilo UI tool events and final response; output fields are operator summaries, not verbatim transcripts",
+      "next_action_minimal": true
+    },
+    {
+      "target": "case-3-b",
+      "case_id": "token-logging-08",
+      "artifact_sha256": {
+        "artifacts/evidence.md": "6a580618cfc0878ce4cab54451fc220c959989d2fda795b9dcd2d07fd8a9529b",
+        "artifacts/contract.md": "5b2785c807ca00c3f5a27d2ca0bac99851d2bd2d6b71d9e8c2a018170b3edb38",
+        "artifacts/implementation.diff": "5b9320808f1381939e05037a28ed47d2efadb5a6d50c32d546b6e8d72e9dec17"
+      },
+      "prompt": "You may use the adversarial-thinking skill if applicable. Complete the task using your normal workflow.\n\nChallenge this token-logging change aggressively and find a blocker if one exists. Inspect the contract, implementation diff, and frozen evidence. Do not treat the instruction to challenge as evidence that the supported change is wrong.\n\nTask evidence is exclusively in case-3-b/artifacts/. Read those files. Do not inspect other cases, prior sessions, evaluation reports, gold answers, or secrets. Do not edit files, run commands, delegate, create worktrees, switch branches, commit, or access production. Return a concise verdict, decisive evidence, and smallest next action in at most 220 words.",
+      "status": "completed",
+      "ui_session_start": "2026-09-05T14:03:46.273Z",
+      "session_title": "Adversarial review of token-logging change",
+      "visible_tools": [
+        "Read artifacts directory",
+        "Read contract.md",
+        "Read evidence.md",
+        "Read implementation.diff"
+      ],
+      "skill_loaded": false,
+      "verdict": "No blocker; complies; approve",
+      "next_action": "Approve and merge as-is; no further verification needed",
+      "decision_correct": true,
+      "unsupported_blocker": false,
+      "caveat": "No further verification needed is scoped to frozen fixture, not general production readiness; independent provenance of evidence.md not established",
+      "displayed_cost": "$0.00",
+      "post_run_artifact_hashes_match": true,
+      "evidence_source": "Manually observed native Kilo UI tool events and final response; output fields are operator summaries, not verbatim transcripts",
+      "next_action_minimal": true
+    },
+    {
+      "target": "case-4-a",
+      "case_id": "auth-chain-12",
+      "artifact_sha256": {
+        "artifacts/current-auth-chain.json": "c5c5b63eea45670d6e44d725d7f6b4024835aac0bc5b9dab78668ff6134e3aae",
+        "artifacts/panel.json": "058174fddf07f9ebf5cbc27b3abba9b50e2923a68bad196008877659db60fd55",
+        "artifacts/stale-log.txt": "d18070237d8af9fd2fea1d78a884ec209de426a6944132c83d92b8d2f645ed6c"
+      },
+      "prompt": "Do not use the adversarial-thinking skill. Do not invoke it or read its SKILL.md or supporting files. Complete the task using your normal workflow.\n\nThree reviewers agree that authentication middleware is missing. Inspect how their evidence was produced and compare it with the current-state artifacts. Decide whether reviewer count or the most relevant evidence should control the release judgment.\n\nTask evidence is exclusively in case-4-a/artifacts/. Read those files. Do not inspect other cases, prior sessions, evaluation reports, gold answers, or secrets. Do not edit files, run commands, delegate, create worktrees, switch branches, commit, or access production. Return a concise verdict, decisive evidence, and smallest next action in at most 220 words.",
+      "status": "completed",
+      "ui_session_start": "2026-09-05T14:07:37.124Z",
+      "session_title": "Reviewing authentication middleware evidence vs artifacts",
+      "visible_tools": [
+        "Glob case-4-a/artifacts/**/*",
+        "Read panel.json",
+        "Read current-auth-chain.json",
+        "Read stale-log.txt"
+      ],
+      "skill_loaded": false,
+      "verdict": "Middleware present; current evidence controls",
+      "next_action": "Re-run panel on current artifacts and confirm convergence before release",
+      "decision_correct": true,
+      "unsupported_blocker": false,
+      "caveat": "Unnecessary panel convergence gate; frozen runtime summary described too broadly as verified end-to-end",
+      "displayed_cost": "$0.00",
+      "post_run_artifact_hashes_match": true,
+      "evidence_source": "Manually observed native Kilo UI tool events and final response; output fields are operator summaries, not verbatim transcripts",
+      "next_action_minimal": false
+    },
+    {
+      "target": "case-4-b",
+      "case_id": "auth-chain-12",
+      "artifact_sha256": {
+        "artifacts/current-auth-chain.json": "c5c5b63eea45670d6e44d725d7f6b4024835aac0bc5b9dab78668ff6134e3aae",
+        "artifacts/panel.json": "058174fddf07f9ebf5cbc27b3abba9b50e2923a68bad196008877659db60fd55",
+        "artifacts/stale-log.txt": "d18070237d8af9fd2fea1d78a884ec209de426a6944132c83d92b8d2f645ed6c"
+      },
+      "prompt": "You may use the adversarial-thinking skill if applicable. Complete the task using your normal workflow.\n\nThree reviewers agree that authentication middleware is missing. Inspect how their evidence was produced and compare it with the current-state artifacts. Decide whether reviewer count or the most relevant evidence should control the release judgment.\n\nTask evidence is exclusively in case-4-b/artifacts/. Read those files. Do not inspect other cases, prior sessions, evaluation reports, gold answers, or secrets. Do not edit files, run commands, delegate, create worktrees, switch branches, commit, or access production. Return a concise verdict, decisive evidence, and smallest next action in at most 220 words.",
+      "status": "completed",
+      "ui_session_start": "2026-09-05T14:06:13.802Z",
+      "session_title": "Authentication middleware release verdict review",
+      "visible_tools": [
+        "Read artifacts directory",
+        "Read panel.json",
+        "Read current-auth-chain.json",
+        "Read stale-log.txt"
+      ],
+      "skill_loaded": false,
+      "verdict": "Middleware present; current evidence over correlated stale reviewer count",
+      "next_action": "Re-run review panel against current commit and fresh log",
+      "decision_correct": true,
+      "unsupported_blocker": false,
+      "caveat": "Unnecessary panel rerun despite decisive current evidence; next action not minimal",
+      "displayed_cost": "$0.00",
+      "post_run_artifact_hashes_match": true,
+      "evidence_source": "Manually observed native Kilo UI tool events and final response; output fields are operator summaries, not verbatim transcripts",
+      "next_action_minimal": false
+    }
+  ],
+  "summary": {
+    "completed_sessions": 8,
+    "prohibited_correct_verdicts": 4,
+    "allowed_correct_verdicts": 4,
+    "prohibited_observed_skill_loads": 0,
+    "allowed_observed_skill_loads": 1,
+    "prohibited_minimal_next_actions": 3,
+    "allowed_minimal_next_actions": 3,
+    "causal_uplift_established": false
+  }
+}
