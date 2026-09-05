@@ -1,0 +1,4 @@
+{
+  "callback_url": "http://billing.example.test/settled",
+  "environment": "production"
+}

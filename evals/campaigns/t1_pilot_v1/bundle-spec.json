@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "base_commit": "79efafc6d7fdf22cab22ca6d0ecc00d17f58b9ec",
+  "paths": [
+    "SKILL.md",
+    "references/brainstorm.md",
+    "references/execution-rescue.md",
+    "references/plan.md",
+    "references/review.md",
+    "references/reviewer-escalation.md",
+    "references/routing-feedback.md"
+  ],
+  "conditions": [
+    {
+      "condition_id": "c1-current-0.1.1",
+      "patch": null
+    },
+    {
+      "condition_id": "c2-discriminate-label",
+      "patch": "candidates/c2-discriminate-label.patch"
+    },
+    {
+      "condition_id": "c3-operational-discriminator",
+      "patch": "candidates/c3-operational-discriminator.patch"
+    }
+  ]
+}

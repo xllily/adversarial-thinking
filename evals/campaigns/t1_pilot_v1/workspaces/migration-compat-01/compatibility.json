@@ -1,0 +1,7 @@
+{
+  "columns_after_migration": ["legacy_email", "display_name"],
+  "deployed_workers": [
+    {"version": "worker-v1", "reads": ["account_uuid"]},
+    {"version": "worker-v2", "reads": ["legacy_email", "account_uuid"]}
+  ]
+}
