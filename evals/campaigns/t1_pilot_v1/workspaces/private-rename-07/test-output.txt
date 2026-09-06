@@ -1,0 +1,4 @@
+test_parse_and_normalize ... ok
+
+Ran 1 test in 0.002s
+OK

@@ -70,3 +70,8 @@ The current public evidence is paired smoke only. It does not meet the retrospec
 ## Offline harness
 
 [`harness/`](harness/) contains the zero-model-call controller used to validate campaign data, prepare randomized requests, blind outputs, verify isolation receipts, and summarize scored runs. The harness does not execute agents or judge natural-language outputs. See [`harness/adapter-contract.md`](harness/adapter-contract.md) for the boundary an external runner must satisfy.
+
+The fixture-backed T1 source campaign lives in
+[`campaigns/t1_pilot_v1/`](campaigns/t1_pilot_v1/). It freezes 12 case
+workspaces and C0-C3 candidate bundles but contains no model results. Bind an
+exact execution profile with its offline materializer before using the harness.

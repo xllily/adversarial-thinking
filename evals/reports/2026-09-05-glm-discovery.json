@@ -1,0 +1,95 @@
+{
+  "date": "2026-09-05",
+  "skill_version": "0.1.1",
+  "skill_changed": false,
+  "plan_sha256": "9493fa5245d26ddf6ec770e40c8a6399ec1c8ec5516482bd449061d093f5120d",
+  "provider": {
+    "protocol": "openai-chat",
+    "endpoint": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+    "model": "glm-5.3-flash",
+    "declared_version": "unknown"
+  },
+  "limits": {
+    "completion_tokens_per_request": 4096,
+    "completion_tokens_total": 98304,
+    "delegation": 0,
+    "model_requests_per_run": 12,
+    "model_requests_total": 96,
+    "redirects": 0,
+    "reported_total_token_stop_threshold_per_run": 64000,
+    "request_bytes": 32768,
+    "request_deadline_seconds": 60,
+    "request_gap_seconds": 60,
+    "retries": 0,
+    "run_deadline_seconds": 360,
+    "runs": 2,
+    "tool_calls_per_run": 12
+  },
+  "payload_options": {
+    "max_tokens": 4096,
+    "reasoning_effort": "low",
+    "thinking": {
+      "clear_thinking": false,
+      "type": "enabled"
+    }
+  },
+  "cost_policy": {
+    "actual_gateway_cost_cny": null,
+    "basis": "BigModel original reference rates; no cache discount",
+    "checked_date": "2026-09-05",
+    "input_cny_per_million": "0.8",
+    "limit_cny": "3.000000",
+    "output_cny_per_million": "2.8",
+    "reservation_input": "request bytes plus 512 overhead tokens; not a proven tokenizer bound",
+    "source": "https://bigmodel.cn/pricing"
+  },
+  "prior_accounting": {
+    "actual_gateway_cost_cny": null,
+    "basis": "official reference, peak rates, no cache discount",
+    "carried_reservation_cny": "0.022569",
+    "estimated_cost_cny": "0.093633",
+    "limit_cny": "3.000000",
+    "pending_reservation_cny": "0.000000",
+    "reported_completion_tokens": 6238,
+    "reported_prompt_tokens": 12497,
+    "reserved_requests": 13
+  },
+  "result": {
+    "completed": [],
+    "cost_monitor": {
+      "actual_gateway_cost_cny": null,
+      "basis": "BigModel original reference rates; no cache discount",
+      "carried_reservation_cny": "0.022569",
+      "estimated_cost_cny": "0.093633",
+      "limit_cny": "3.000000",
+      "pending_reservation_cny": "0.013466",
+      "reported_completion_tokens": 6238,
+      "reported_prompt_tokens": 12497,
+      "reserved_requests": 14
+    },
+    "error": "provider HTTP status 429",
+    "outcome": "failed_or_unknown_no_retry"
+  },
+  "new_attempts": 1,
+  "new_usage_reported": false,
+  "combined_reference_allocation_cny": "0.129668",
+  "results": {
+    "high-risk": "HTTP 429 before any model response; activation unverified",
+    "low-risk": "not attempted; skip unverified"
+  },
+  "preflight": {
+    "receipt_sha256": "20a675bb87607850f4cdfd3fa5c9e24d20be5d3e4695908d3681993885362c29",
+    "network_disabled": true,
+    "non_root": true,
+    "read_only": true,
+    "denial_checks": 2,
+    "current_skill_bytes_verified": true
+  },
+  "limitations": [
+    "No behavioral observation or uplift evidence",
+    "No retry after first provider error",
+    "Unknown charge reservation retained",
+    "Different provider cohort from previous explicit reviews",
+    "Immutable model version and actual invoice unknown"
+  ]
+}

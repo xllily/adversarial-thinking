@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "campaign_id": "t1-pilot-v1",
+  "cases_file": "cases.public.json",
+  "gold_file": "gold.controller.json",
+  "conditions_file": "conditions.json",
+  "execution_profile": {
+    "model": {
+      "name": "BIND_WITH_PILOT_MATERIALIZER",
+      "version": "BIND_WITH_PILOT_MATERIALIZER",
+      "config": {
+        "not_executable": true
+      }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "current_commit": "79efafc",
+  "request_chain": ["request_id", "authenticate", "authorize_resource", "route_handler"],
+  "policy_check": "PASS",
+  "runtime_unauthorized_request_status": 403
+}

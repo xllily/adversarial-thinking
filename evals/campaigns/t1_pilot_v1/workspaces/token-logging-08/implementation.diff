@@ -1,0 +1,2 @@
+-logger.info("token=%s", token)
++logger.info("token_hash_prefix=%s", sha256(token.encode()).hexdigest()[:6])

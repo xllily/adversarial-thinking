@@ -1,0 +1,4 @@
+ value = float(token)
++if not math.isfinite(value):
++    raise ParseError("non-finite number")
+ return value

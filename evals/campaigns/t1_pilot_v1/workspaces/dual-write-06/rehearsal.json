@@ -1,0 +1,6 @@
+{
+  "deployed_worker_versions": ["worker-v1", "worker-v2", "worker-v3"],
+  "rehearsed_worker_versions": ["worker-v1", "worker-v2", "worker-v3"],
+  "dual_write_gap_count": 0,
+  "records_checked": 25000
+}

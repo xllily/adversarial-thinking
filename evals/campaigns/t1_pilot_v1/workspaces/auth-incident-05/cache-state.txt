@@ -1,0 +1,3 @@
+cache bypass reproduction: rejection persists
+global cache age: 3 seconds
+network connect p95: 4 milliseconds

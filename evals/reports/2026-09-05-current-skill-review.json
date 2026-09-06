@@ -1,0 +1,108 @@
+{
+  "date": "2026-09-05",
+  "harness_commit": "ef099b3",
+  "plan_sha256": "b8b43567f06578ee0cb70eae3250a13afe15b4db669f425bf0ac9533b797b271",
+  "skill_version": "0.1.1",
+  "skill_bundle_hash": "sha256:358031f17f5c16d93a00231d6d37b631e527f6e94c38f96d65dd9c3dd1f308cf",
+  "skill_file_sha256": {
+    "SKILL.md": "b16fae64f25d87bdb69d041b1d485aff5a7ad7de05b61dcaa17a0be73462b597",
+    "references/review.md": "f8615288e2e2e90cdb3eb108b4ca4547d46cf3144f7b2ec9c2ab250d2547ce4b"
+  },
+  "assessment_method": "manual, unblinded, against criteria frozen before requests",
+  "criteria": {
+    "dual-write-06": [
+      "retain staged canary",
+      "recognize rehearsal defeats stated legacy-worker countermodel",
+      "retain rollback and abort criteria without inventing a new blocker"
+    ],
+    "migration-compat-01": [
+      "block incompatible migration",
+      "cite deployed readers losing account_uuid",
+      "report observed failing check without claiming personal execution"
+    ]
+  },
+  "findings": {
+    "current_skill_cases_passed": 2,
+    "baseline_cases_passed": 2,
+    "observed_decision_improvement": false,
+    "scope": "explicit review invocation on supplied observed evidence; two cases, one sample each"
+  },
+  "new_reported_prompt_tokens": 4679,
+  "new_reported_completion_tokens": 2652,
+  "request_start_gaps_seconds": [
+    65.57386016845703,
+    65.63781690597534,
+    70.10208201408386
+  ],
+  "response_file_to_next_attempt_gaps_seconds": [
+    60.00699234008789,
+    60.01032996177673,
+    60.00153422355652
+  ],
+  "remaining_isolation_containers": 0,
+  "cost_monitor": {
+    "actual_gateway_cost_cny": null,
+    "basis": "official reference, peak rates, no cache discount",
+    "carried_reservation_cny": "0.022569",
+    "estimated_cost_cny": "0.093633",
+    "limit_cny": "3.000000",
+    "pending_reservation_cny": "0.000000",
+    "reported_completion_tokens": 6238,
+    "reported_prompt_tokens": 12497,
+    "reserved_requests": 13
+  },
+  "results": [
+    {
+      "id": "review-1",
+      "case_id": "migration-compat-01",
+      "condition_id": "c0-skill-absent",
+      "answer": "Observed facts:\n- `verify.py` exited 1 and printed: `FAIL incompatible deployed workers: worker-v1, worker-v2`.\n- `compatibility.json` lists post-migration columns as `legacy_email`, `display_name`; `account_uuid` is absent.\n- Deployed worker config still shows `worker-v1` reading `account_uuid` and `worker-v2` reading `legacy_email` and `account_uuid`.\n- Therefore both deployed workers are incompatible with the post-migration schema.\n\nThe rollout is not ready to approve. The proposal’s assumption that all deployed workers will read only `legacy_email` after the writer deploys is contradicted by the evidence. Removing `account_uuid` while any deployed worker still reads it would break reads.\n\nNext permitted action:\nRevise the rollout plan. Do not remove `account_uuid` until all deployed worker versions have been migrated/updated to read only `legacy_email`/`display_name`, and verification passes. Then re-run verification before approving.",
+      "usage": {
+        "prompt_tokens": 563,
+        "completion_tokens": 694,
+        "total_tokens": 1257
+      },
+      "finish_reason": "stop",
+      "response_sha256": "ba1538e62c437acb659a8ce8eef1271694b499bd0712b9b0ed96050b77a1a75d"
+    },
+    {
+      "id": "review-2",
+      "case_id": "migration-compat-01",
+      "condition_id": "c1-current-0.1.1",
+      "answer": "Verdict: **not ready**  \nObserved fact: `verify.py` exits with code 1, reporting incompatible workers `worker-v1` and `worker-v2`. Both read `account_uuid`, which is absent from `columns_after_migration`. The proposal assumes all deployed workers will read `legacy_email` after the writer deploys, but worker-v1 does not read `legacy_email` and worker-v2 still depends on the column being removed.  \nNext permitted action: **Do not approve this rollout.** Correct the plan so that every deployed reader depends only on columns that survive the migration (`legacy_email`, `display_name`) before the column `account_uuid` is dropped. This may require updating worker-v1 or scheduling a separate reader migration window. Rerun verification after each change.",
+      "usage": {
+        "prompt_tokens": 1822,
+        "completion_tokens": 557,
+        "total_tokens": 2379
+      },
+      "finish_reason": "stop",
+      "response_sha256": "792d79ea28a4102315a0563f411449b1252d97f079279abe30ad486039a08481"
+    },
+    {
+      "id": "review-3",
+      "case_id": "dual-write-06",
+      "condition_id": "c1-current-0.1.1",
+      "answer": "**Verdict: Ready**  \n**Evidence** – The controller observed `verify.py` exit 0 with \"PASS complete mixed-version rehearsal; zero dual-write gaps\". `rehearsal.json` confirms all three deployed worker versions were rehearsed, sets matched, and 25 000 records had no dual‑write gap. The plan’s stated countermodel—a deployed legacy worker bypassing dual‑write—is directly checked: any un‑rehearsed deployed version would break set equality, and any gap would be non‑zero. No gap was found, so the highest‑leverage assumption is not supported.  \n\n**Next permitted action** – Begin the 1% canary, preserving the abort‑on‑gap guard and rollback procedure as specified in the rollout plan.  \n\n**Note** – All observations are from the provided artifacts; no future guarantees beyond the tested state are implied.",
+      "usage": {
+        "prompt_tokens": 1816,
+        "completion_tokens": 1082,
+        "total_tokens": 2898
+      },
+      "finish_reason": "stop",
+      "response_sha256": "b8069e1bdc19cb31222a67226111095b8f3c7943765f5b57b1fecdac7b3bd8a2"
+    },
+    {
+      "id": "review-4",
+      "case_id": "dual-write-06",
+      "condition_id": "c0-skill-absent",
+      "answer": "**Observed facts:**  \n- `verify.py` exited 0 with stdout: \"PASS complete mixed-version rehearsal; zero dual-write gaps\".  \n- `rehearsal.json` confirms all three deployed worker versions (v1, v2, v3) were rehearsed, 25 000 records checked, and zero dual-write gaps.  \n- The rollout plan mandates starting with a 1% canary and aborting on any dual-write gap.  \n\n**Decision:** The rehearsal evidence shows the mixed-version dual-write path is validated and the countermodel (legacy worker bypassing dual-write) is not present. The rollout is ready to proceed.  \n\n**Next permitted action:** Begin the 1% canary deployment as specified in `rollout-plan.md`, preserving rollback capability until legacy readers are retired.",
+      "usage": {
+        "prompt_tokens": 478,
+        "completion_tokens": 319,
+        "total_tokens": 797
+      },
+      "finish_reason": "stop",
+      "response_sha256": "59137aeb2945dfef6469ff4770d9fba86eee75a40758eb6d87f48c126ae06c70"
+    }
+  ]
+}

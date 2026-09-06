@@ -1,0 +1,3 @@
+client issued_at=2026-09-04T10:00:05.000Z
+server received_at=2026-09-04T09:59:55.000Z connect_ms=2 cache=MISS
+server decision=REJECT reason="token issued 10s in the future"

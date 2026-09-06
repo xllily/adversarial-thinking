@@ -1,0 +1,2 @@
+# Unified patch context lines contain a required space, including blank lines.
+/evals/campaigns/t1_pilot_v1/candidates/*.patch whitespace=-blank-at-eol,-blank-at-eof

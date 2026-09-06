@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "profiles": {
+    "t1-small-read-v1": {
+      "allowed_tools": ["read"],
+      "max_model_calls": 12,
+      "max_total_tokens": 16000,
+      "max_tool_calls": 12,
+      "max_latency_ms": 180000,
+      "network_access": false,
+      "delegated_model_calls": 0
+    },
+    "t1-small-read-shell-v1": {
+      "allowed_tools": ["read", "shell"],
+      "max_model_calls": 12,
+      "max_total_tokens": 16000,
+      "max_tool_calls": 12,
+      "max_latency_ms": 180000,
+      "network_access": false,
+      "delegated_model_calls": 0
+    }
+  }
+}
