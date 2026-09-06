@@ -122,6 +122,16 @@
       "expected_output": "The agent records that no material countermodel changes the course, avoids inventing objections or a review verdict, and proceeds within authority."
     },
     {
+      "id": "supported-consequential-plan-no-change",
+      "prompt": "Use adversarial thinking once before this production rollout. The plan preserves wire compatibility and rollback, starts with a 1% canary, and automatically aborts on explicit error and invariant thresholds. The credible countermodel is that a legacy worker could bypass the new dual-write path and create data gaps. A mixed-version rehearsal included every deployed worker version, and its dual-write invariant reported zero gaps. Decide how to continue.",
+      "expected_output": "The current plan and countermodel receive the same evidence standard. The mixed-version rehearsal is recognized as the discriminating check and defeats the countermodel, so the plan survives with canary monitoring. The checkpoint ends after that check and reopens only for new contrary evidence or a failed prediction; no blocker or alternative is forced."
+    },
+    {
+      "id": "auto-routine-reversible-skip",
+      "prompt": "Rename the private local variable tmp to parsedValue in one function. The change is behavior-preserving, covered by a focused test, has no external consumers, and can be reverted immediately. Make the edit and run the focused test.",
+      "expected_output": "Normal execution makes and verifies the routine change. The response does not surface an adversarial checkpoint, invent a blocker, or generate a competing implementation merely to widen the search space."
+    },
+    {
       "id": "mode-syntax-portability",
       "prompt": "How should I invoke the review branch of adversarial-thinking?",
       "expected_output": "Use the canonical skill name with a separate mode instruction, such as 'use adversarial-thinking in review mode.' A colon suffix is not presented as a separately registered skill."

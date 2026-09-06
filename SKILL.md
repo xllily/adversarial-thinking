@@ -1,9 +1,15 @@
 ---
 name: adversarial-thinking
-description: Use when adversarial challenge is needed before committing to a consequential plan; when an artifact, claim, or decision needs skeptical judgment; when a problem frame or search space needs widening; or when execution is looping, drifting, repeatedly failing, or contradicting evidence. Do not use merely because work is long, difficult, or open-ended.
+description: >-
+  Use at a consequential or hard-to-reverse commitment when a missed
+  assumption could materially change the decision; for skeptical review of
+  material claims or artifacts; for widening the search space before a costly
+  commitment; or for execution recovery after repeated same-class failures,
+  oscillation, concrete goal drift, or contradiction with evidence. Skip
+  routine, reversible, well-tested work unless explicitly requested.
 license: Apache-2.0
 metadata:
-  version: "0.1.0"
+  version: "0.1.1"
   status: experimental
 ---
 
@@ -12,6 +18,16 @@ metadata:
 ## Core principle
 
 **Disconfirm before commitment.** Preserve authoritative intent and constraints; keep the frame provisional; challenge only what could change the next commitment. Confidence, consensus, and sunk cost are not evidence. Authority constrains action, not empirical truth. This is a checkpoint, not a permanent persona.
+
+## Calibration
+
+Optimize for decision quality, not disagreement.
+
+Treat the current model and its countermodel as competing hypotheses under the same evidence standard. A countermodel is not a finding or a preferred answer. Keeping the current course is a successful result when the evidence supports it.
+
+Spend challenge effort only when its expected decision value exceeds its delay, complexity, and communication cost.
+
+After Integrate, exit the adversarial posture immediately and return to the host workflow with its normal tone and execution style.
 
 ## Authority and composition
 

@@ -12,7 +12,7 @@
 6. Record the host, model, skill revision, complete outputs, scores, and limitations.
 7. Treat a strong baseline as evidence that the scenario does not yet discriminate skill value; do not report baseline parity as improvement.
 
-For automatic invocation, run a separate discovery campaign without explicitly loading or naming the skill. Include both positive triggers and low-risk negative cases.
+For automatic invocation, run a separate discovery campaign without explicitly loading or naming the skill. Include both positive triggers and low-risk negative cases. Record router or loaded-skill telemetry when the host exposes it; normal-looking output alone does not prove that the skill was not invoked.
 
 ## Core release rubric
 
@@ -42,6 +42,21 @@ Each scenario is scored from 0 to 6. A run passes only at 6.
 - Keeps the checkpoint proportionate and concise: 1 point.
 - Gives an explicit no-blocker or no-countermodel result showing that nothing decision-relevant changes the course: 1 point.
 
+### Supported-plan calibration
+
+- Applies the same evidence standard to the current model and countermodel: 2 points.
+- Recognizes the mixed-version rehearsal as the discriminating evidence and retains the current plan: 2 points.
+- Ends after that check and reopens only for new contrary evidence or a failed prediction: 1 point.
+- Adds no unsupported blocker or forced alternative: 1 point.
+
+### Automatic-invocation negative
+
+- Router or loaded-skill telemetry confirms `adversarial-thinking` was not invoked: 3 points.
+- Completes and verifies the routine task through the normal host workflow: 2 points.
+- Surfaces no checkpoint, blocker, extra requirement, or competing implementation: 1 point.
+
+Without router or loaded-skill telemetry, record only that no behavioral change was visible; do not report automatic non-invocation as passed.
+
 ## Evidence levels
 
 - **Specification only:** scenario and expected behavior exist.
@@ -51,3 +66,7 @@ Each scenario is scored from 0 to 6. A run passes only at 6.
 - **Cross-model:** the same protocol passes on every declared supported model.
 
 The current public evidence is paired smoke only. It does not meet the retrospective A/B level because the nominal baseline was not isolated from the globally installed skill. See [`results/2026-08-31-retrospective-ab.md`](results/2026-08-31-retrospective-ab.md).
+
+## Offline harness
+
+[`harness/`](harness/) contains the zero-model-call controller used to validate campaign data, prepare randomized requests, blind outputs, verify isolation receipts, and summarize scored runs. The harness does not execute agents or judge natural-language outputs. See [`harness/adapter-contract.md`](harness/adapter-contract.md) for the boundary an external runner must satisfy.
