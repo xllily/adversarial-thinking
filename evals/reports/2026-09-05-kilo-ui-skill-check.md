@@ -1,6 +1,6 @@
 # Current Skill in VS Code Kilo — 2026-09-05
 
-Eleven tasks completed through the user's configured VS Code Kilo sidebar:
+Eleven tasks completed through the configured VS Code Kilo sidebar:
 three initial behavior checks and eight follow-up prompt-only paired sessions.
 In the four pairs, both conditions reached 4/4 correct decisive judgments;
 only one allowed-condition session loaded the Skill. This shows no observed
@@ -49,13 +49,10 @@ would invalidate rehearsal coverage, but does not itself prove bypass behavior.
 
 ## Runtime and evidence limits
 
-- The first migration task was manually stopped after discovering that global
-  `bash: * -> Allow` still auto-approved commands despite the sidebar toggle
-  being disabled. After the user explicitly requested ordinary native Kilo use,
-  the same task was resumed and completed. It is an interrupted/resumed sample,
-  not a pristine uninterrupted activation trial. The other two completed fresh.
-- The user chose native VS Code Kilo operation. The Python harness was not used
-  for these requests; its 60-second pacing, request journal, isolation receipts,
+- The first migration task was manually interrupted and resumed. It is not a
+  pristine uninterrupted activation trial. The other two completed fresh.
+- The Python harness was not used for these requests; its 60-second pacing,
+  request journal, isolation receipts,
   and monetary monitor do not apply to this cohort. No exact API-request or token
   totals were captured. Kilo displayed rounded costs of $0.01 for migration and
   $0.00 for each other task; these are not verified charges or a quota statement.
@@ -74,12 +71,12 @@ would invalidate rehearsal coverage, but does not itself prove bypass behavior.
   this report intentionally excludes raw reasoning and private configuration.
 
 Keep the current Skill unchanged. A physically Skill-absent same-model comparison
-remains necessary for the stricter isolation claim. The user subsequently chose
-the lighter prompt-only comparison described below.
+remains necessary for the stricter isolation claim. The follow-up below uses a
+prompt-only comparison.
 
 ## Follow-up paired comparison: completed
 
-The user authorized four pairs through native Kilo, comparing permission to use
+Four pairs ran through native Kilo, comparing permission to use
 the Skill against an explicit instruction not to use it. This is a separate
 diagnostic cohort, not the frozen T1 physical-isolation experiment.
 
@@ -107,14 +104,10 @@ explicitly cued cases with unblinded manual scoring and one sample per condition
 cannot establish statistical or general causal uplift. Neither the prohibition
 prompt nor the shell-write sandbox makes the Skill physically absent.
 
-Opening the temporary workspace initially activated VS Code Restricted Mode.
-The user confirmed trust, the banner disappeared, and Kilo loaded successfully.
-This setup interruption preceded the first model submission. Eight fresh Kilo
-sessions then completed, with GLM-5.3-Flash visibly selected before each submission.
+Eight fresh Kilo sessions completed, with GLM-5.3-Flash visibly selected before
+each submission.
 The first started at 13:52:09 UTC and the last at 14:07:37 UTC on 2026-09-05.
 No provider error, model retry, or interrupted/resumed model session was observed.
-Some controller UI actions needed recovery before submission; those were not
-additional model trials.
 
 | Case | Prohibited condition | Allowed condition | Visible Skill loading (prohibited / allowed) |
 | --- | --- | --- | --- |

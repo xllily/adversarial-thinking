@@ -5,8 +5,7 @@
   "model": "glm-5.3-flash",
   "mode": "Code",
   "samples_per_case_condition": 1,
-  "workspace": "/private/tmp/kilo-paired-20260905",
-  "condition_setup": "User authorized prompt-only allowed/prohibited comparison; not physically skill-absent. Shared neutral VS Code workspace.",
+  "condition_setup": "Prompt-only allowed/prohibited comparison in a shared neutral VS Code workspace; the Skill is not physically absent.",
   "condition_prompts": {
     "a": "Do not use the adversarial-thinking skill. Do not invoke it or read its SKILL.md or supporting files. Complete the task using your normal workflow.",
     "b": "You may use the adversarial-thinking skill if applicable. Complete the task using your normal workflow."
@@ -282,5 +281,6 @@
     "prohibited_minimal_next_actions": 3,
     "allowed_minimal_next_actions": 3,
     "causal_uplift_established": false
-  }
+  },
+  "workspace_layout": "One shared temporary workspace outside the Skill repository; entry targets and artifact paths are relative to that workspace."
 }

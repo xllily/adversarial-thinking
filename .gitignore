@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 /.research
 /evals/.runs/
+/.kilo/
