@@ -40,17 +40,6 @@
     60.00153422355652
   ],
   "remaining_isolation_containers": 0,
-  "cost_monitor": {
-    "actual_gateway_cost_cny": null,
-    "basis": "official reference, peak rates, no cache discount",
-    "carried_reservation_cny": "0.022569",
-    "estimated_cost_cny": "0.093633",
-    "limit_cny": "3.000000",
-    "pending_reservation_cny": "0.000000",
-    "reported_completion_tokens": 6238,
-    "reported_prompt_tokens": 12497,
-    "reserved_requests": 13
-  },
   "results": [
     {
       "id": "review-1",
@@ -104,5 +93,6 @@
       "finish_reason": "stop",
       "response_sha256": "59137aeb2945dfef6469ff4770d9fba86eee75a40758eb6d87f48c126ae06c70"
     }
-  ]
+  ],
+  "usage_scope": "Reported usage covers these four review requests; historical account reservations are excluded."
 }

@@ -38,41 +38,16 @@
     "basis": "BigModel original reference rates; no cache discount",
     "checked_date": "2026-09-05",
     "input_cny_per_million": "0.8",
-    "limit_cny": "3.000000",
     "output_cny_per_million": "2.8",
-    "reservation_input": "request bytes plus 512 overhead tokens; not a proven tokenizer bound",
     "source": "https://bigmodel.cn/pricing"
-  },
-  "prior_accounting": {
-    "actual_gateway_cost_cny": null,
-    "basis": "official reference, peak rates, no cache discount",
-    "carried_reservation_cny": "0.022569",
-    "estimated_cost_cny": "0.093633",
-    "limit_cny": "3.000000",
-    "pending_reservation_cny": "0.000000",
-    "reported_completion_tokens": 6238,
-    "reported_prompt_tokens": 12497,
-    "reserved_requests": 13
   },
   "result": {
     "completed": [],
-    "cost_monitor": {
-      "actual_gateway_cost_cny": null,
-      "basis": "BigModel original reference rates; no cache discount",
-      "carried_reservation_cny": "0.022569",
-      "estimated_cost_cny": "0.093633",
-      "limit_cny": "3.000000",
-      "pending_reservation_cny": "0.013466",
-      "reported_completion_tokens": 6238,
-      "reported_prompt_tokens": 12497,
-      "reserved_requests": 14
-    },
     "error": "provider HTTP status 429",
     "outcome": "failed_or_unknown_no_retry"
   },
   "new_attempts": 1,
   "new_usage_reported": false,
-  "combined_reference_allocation_cny": "0.129668",
   "results": {
     "high-risk": "HTTP 429 before any model response; activation unverified",
     "low-risk": "not attempted; skip unverified"
@@ -88,8 +63,8 @@
   "limitations": [
     "No behavioral observation or uplift evidence",
     "No retry after first provider error",
-    "Unknown charge reservation retained",
     "Different provider cohort from previous explicit reviews",
     "Immutable model version and actual invoice unknown"
-  ]
+  ],
+  "usage_scope": "One attempt with no new usage reported; historical account activity and reservation balances are excluded."
 }

@@ -2,6 +2,40 @@
 
 `evals.json` is a behavioral specification, not proof that the skill improves an agent. Each entry defines a prompt and semantic expected behavior without requiring exact wording.
 
+## Public evidence and local run data
+
+| Location | Publication purpose |
+| --- | --- |
+| `evals.json`, `harness/` | Public behavioral specifications, controller code, and offline checks. |
+| `campaigns/` | Public synthetic development fixtures, frozen conditions, and scoring criteria. |
+| `reports/`, `results/` | Reviewed evidence from completed or attempted runs, including negative results and limitations. |
+| `.runs/` | Ignored local plans, raw output, receipts, credentials, approval notes, and account reservation ledgers. |
+| Repository-root `.kilo/` | Ignored local Kilo configuration and session/worktree state. |
+
+Publish the model and Skill revision, task prompts, relative fixture paths,
+hashes, observed results, scoring method, experiment-specific usage, and evidence
+limits. Remove machine-specific absolute paths, private configuration, raw
+reasoning, approval conversations, and historical account balances. Keep
+unexecuted session plans in `.runs/`; an attempted request that fails can still
+produce a public diagnostic report, provided it is not scored as model behavior.
+Git ignore rules prevent normal staging of local files; they do not sanitize
+already tracked content or remove earlier published versions.
+
+`gold.controller.json` is intentionally public for reproducible scoring. The
+fixtures and answers are a development set, not a secret held-out benchmark.
+Keep answers, condition assignments, and reports outside the evaluated agent's
+workspace and inputs; that runtime separation does not make published answers
+secret or rule out prior exposure.
+
+Published evidence:
+
+- [Explicit review check](reports/2026-09-05-current-skill-review.md): two cases,
+  one sample per condition; both conditions passed without an observed advantage.
+- [GLM discovery diagnostic](reports/2026-09-05-glm-discovery.md): one HTTP 429,
+  no model response and no behavioral score.
+- [Native Kilo checks and prompt-only pairs](reports/2026-09-05-kilo-ui-skill-check.md):
+  actual tool-loading observations and their limits.
+
 ## Evaluation protocol
 
 1. Select scenarios before reading outputs.
@@ -65,7 +99,10 @@ Without router or loaded-skill telemetry, record only that no behavioral change 
 - **Prospective RED/GREEN:** a failing baseline was captured before the behavior-changing instruction was written.
 - **Cross-model:** the same protocol passes on every declared supported model.
 
-The current public evidence is paired smoke only. It does not meet the retrospective A/B level because the nominal baseline was not isolated from the globally installed skill. See [`results/2026-08-31-retrospective-ab.md`](results/2026-08-31-retrospective-ab.md).
+The [2026-08-31 report](results/2026-08-31-retrospective-ab.md) is paired smoke
+only: its nominal baseline was not isolated from the globally installed Skill.
+Later reports above describe separate cohorts and their own exposure/isolation
+limits. None establishes general causal uplift or full-pilot completion.
 
 ## Offline harness
 

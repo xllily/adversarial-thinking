@@ -33,12 +33,9 @@ read to score and no harder paired cases were attempted after this error.
   full tool-call reasoning replay; 60-second response-end pacing and request
   timeout; first provider/runtime error stops. The documented model requires
   thinking, so disabling it was not used. See the [official API contract](https://docs.bigmodel.cn/api-reference/模型-api/对话补全.md).
-- One new attempt; 14 cumulative reserved requests out of 96. No new reported
-  token usage. No retry or second conversation.
-- Prior reference spend: CNY 0.093633, plus CNY 0.022569 held for prior unknown
-  usage. Those historical amounts were carried without repricing old tokens.
-- New unknown request reservation: CNY 0.013466. Combined reference allocation:
-  **CNY 0.129668 / 3.000000**. The unknown reservation remains held even for 429.
+- One attempt; no new reported token usage. No retry or second conversation.
+  Historical account activity and reservation balances are excluded from this
+  public report; missing usage is not evidence of zero charge.
 - New estimates use original [BigModel reference prices](https://bigmodel.cn/pricing)
   checked 2026-09-05: CNY 0.8/2.8 per million input/completion tokens, no temporary
   or cache discount. Decimal calculations round conservatively upward to whole
@@ -49,12 +46,12 @@ read to score and no harder paired cases were attempted after this error.
 This is a provider-status block, not evidence of Skill success or failure.
 Earlier explicit reviews remain Skill 2/2 and baseline 2/2 with no observed
 advantage; they are a different model cohort and cannot establish a GLM effect.
-Keep the Skill unchanged. A future separately authorized attempt must first
-inspect this failure journal and retain both historical and new held amounts.
-Do not replay this claimed plan or resume it automatically.
+Keep the Skill unchanged. Any future attempt is a separate cohort; this stopped
+request provides no activation result and must not be counted as completed.
 
 The accompanying [sanitized evidence](2026-09-05-glm-discovery.json) records the
-plan, settings, receipt digest, failure category, and accounting. No credentials,
-raw reasoning, private runtime paths, or provider response bodies are published.
+plan digest, settings, receipt digest, failure category, and usage availability.
+No credentials, raw reasoning, private runtime paths, or provider response bodies
+are published.
 
 Local validation: 66 harness tests and 10 pilot tests passed (76 total).

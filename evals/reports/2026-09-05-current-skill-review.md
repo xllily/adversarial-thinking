@@ -47,9 +47,8 @@ exposure; automatic discovery/activation still requires a separate test.
 - New reported usage: 4679 input + 2652 completion = 7331 tokens.
 - C0 used 2054 total tokens; C1 used 5277. In these two samples, explicit Skill
   context increased total token use without changing the correct decisions.
-- New reference cost: CNY 0.037905. The monitored campaign, including earlier
-  attempts, totals CNY 0.093633 plus CNY 0.022569 retained for prior unknown usage:
-  CNY 0.116202 against the same CNY 3 threshold.
+- Reference cost for these four requests: CNY 0.037905. Historical account
+  activity and reservation balances are excluded from this public report.
 - Prices use the [official peak reference rates](https://api-docs.deepseek.com/zh-cn/quick_start/pricing/)
   checked 2026-09-05, with no cache discount. Actual gateway charges and immutable
   model version remain unknown. The monitor is not an actual billing hard cap.

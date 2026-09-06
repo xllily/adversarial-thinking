@@ -5,6 +5,12 @@ contains 12 realistic, local-only target workspaces, controller-owned gold data,
 and reproducible candidate patches. Building or validating it makes no model,
 network, provider, or paid calls.
 
+These fixtures and `gold.controller.json` are intentionally public development
+data for reproducible scoring, not a secret held-out benchmark. Controller-only
+means excluded from the evaluated agent's inputs and workspace, not private in
+this repository. Publishing the answers also limits claims about unseen-task
+generalization; preserve that distinction in reports.
+
 This is a dataset and condition freeze, not behavioral evidence. Do not report
 an uplift, regression, isolation pass, or model result until separately
 authorized runs have been ingested and scored.
