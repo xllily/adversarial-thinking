@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """Bounded diagnostic agent runner for the eight T1 isolation targets."""
 import argparse
+import copy
+from datetime import date
 from decimal import Decimal, ROUND_CEILING
 import hashlib
 import json
 from pathlib import Path
+import platform
 import re
 import signal
 import sys
@@ -28,6 +31,16 @@ COST_POLICY = {'limit_cny': '3.000000', 'basis': 'official reference, peak rates
                'source': 'https://api-docs.deepseek.com/zh-cn/quick_start/pricing/',
                'checked_date': '2026-09-05', 'actual_gateway_cost_cny': None,
                'reservation_input': 'request bytes plus 512 overhead tokens; not a proven tokenizer bound'}
+REVIEW_LIMITS = dict(LIMITS, completion_tokens_per_request=4096, completion_tokens_total=96 * 4096)
+REVIEW_OPTIONS = {'max_tokens': 4096, 'thinking': {'type': 'enabled', 'clear_thinking': False},
+                  'reasoning_effort': 'low'}
+REVIEW_INPUT_MARGIN = 512
+REVIEW_TOKENIZER_REVISION = '690b705278a3a58e538fcb37c2ca8b5f9511213c'
+REVIEW_TOKENIZER_FILES = {
+    'tokenizer.json': '19e773648cb4e65de8660ea6365e10acca112d42a854923df93db4a6f333a82d',
+    'tokenizer_config.json': '98b1271574f41abf89427ae2dda030d94dc9478f0edc5a8bd240db213c6fd5fc',
+    'chat_template.jinja': '0c4099f3382d6c92700dfb99725025360966fd73032f0ecf32377c0d9e6309c5'}
+REVIEW_TOKENIZER_PACKAGES = {'tokenizers': '0.23.2', 'jinja2': '3.1.6'}
 TOOLS = [
     {'type': 'function', 'function': {'name': 'read', 'description':
      'Read one regular UTF-8 file under /workspace or the available /skills directory.',
@@ -42,6 +55,123 @@ TOOLS = [
 
 def digest(value):
     return hashlib.sha256(provider.encode(value)).hexdigest()
+
+
+class ReviewTokenCounter:
+    """Pinned GLM text template only; no downloads, weights, or remote code."""
+    def __init__(self, directory):
+        directory = Path(directory).resolve(strict=True)
+        assets = {}
+        for name, expected in REVIEW_TOKENIZER_FILES.items():
+            path = directory / name
+            if path.is_symlink() or not path.is_file():
+                raise ValueError('missing regular tokenizer asset')
+            raw = path.read_bytes()
+            if hashlib.sha256(raw).hexdigest() != expected:
+                raise ValueError('tokenizer asset hash mismatch')
+            assets[name] = raw.decode('utf-8')
+        # Lazy imports keep discovery and the ordinary offline suite dependency-free.
+        import tokenizers
+        import jinja2
+        from jinja2.sandbox import ImmutableSandboxedEnvironment
+        versions = {'tokenizers': tokenizers.__version__, 'jinja2': jinja2.__version__}
+        if versions != REVIEW_TOKENIZER_PACKAGES:
+            raise ValueError('tokenizer dependency version mismatch')
+        self.tokenizer = tokenizers.Tokenizer.from_str(assets['tokenizer.json'])
+        env = ImmutableSandboxedEnvironment(trim_blocks=True, lstrip_blocks=True,
+                                           extensions=['jinja2.ext.loopcontrols'])
+        env.filters['tojson'] = lambda value, **kwargs: json.dumps(value, **kwargs)
+        self.template = env.from_string(assets['chat_template.jinja'])
+        self.policy = {'directory': str(directory), 'revision': REVIEW_TOKENIZER_REVISION,
+                       'asset_sha256': dict(REVIEW_TOKENIZER_FILES), 'packages': versions,
+                       'python_version': platform.python_version(), 'margin_tokens': REVIEW_INPUT_MARGIN,
+                       'basis': 'pinned GLM local chat template and tokenizer plus margin',
+                       'hosted_tokenizer_parity_verified': False}
+
+    def __call__(self, payload):
+        wire = provider.strict_json(payload)
+        if (wire['model'] != 'glm-5.3-flash' or wire.get('reasoning_effort') != 'low' or
+                wire.get('thinking') != REVIEW_OPTIONS['thinking']):
+            raise ValueError('local tokenizer request profile mismatch')
+        # Template expects argument mappings. Change only this counting copy.
+        messages = copy.deepcopy(wire['messages'])
+        for message in messages:
+            for call in message.get('tool_calls', []):
+                call['function']['arguments'] = provider.strict_json(call['function']['arguments'])
+        rendered = self.template.render(messages=messages, tools=wire['tools'], reasoning_effort='low',
+                                        clear_thinking=False, add_generation_prompt=True)
+        return len(self.tokenizer.encode(rendered, add_special_tokens=False).ids)
+
+
+def local_input_estimate(payload, token_counter):
+    count = token_counter(payload)
+    if type(count) is not int or count < 0:
+        raise ValueError('invalid local input token count')
+    return {'input_tokens_estimate': count, 'input_tokens_reserved': count + REVIEW_INPUT_MARGIN}
+
+
+def review_cost_policy(config, policy):
+    """Bind supplied GLM reference rates; this does not verify current prices."""
+    if (config['T1_ENDPOINT_URL'] != provider.BIGMODEL_ENDPOINT or
+            config['T1_MODEL_ID'] != 'glm-5.3-flash' or config['T1_PROTOCOL'] != 'openai-chat' or
+            config['T1_SUPPORTS_TOOL_CALLS'] != 'true'):
+        raise ValueError('explicit-review requires the planned GLM endpoint/model/tools')
+    keys = ('model', 'input_cny_per_million', 'output_cny_per_million', 'source', 'checked_date')
+    if not isinstance(policy, dict) or not all(k in policy for k in keys):
+        raise ValueError('explicit-review requires model-specific dated reference rates')
+    if (policy['model'] != config['T1_MODEL_ID'] or not isinstance(policy['source'], str) or
+            not policy['source'].startswith('https://') or not isinstance(policy['checked_date'], str)):
+        raise ValueError('invalid reference policy provenance')
+    if (not re.fullmatch(r'\d{4}-\d{2}-\d{2}', policy['checked_date']) or
+            date.fromisoformat(policy['checked_date']) > date.today()):
+        raise ValueError('invalid reference policy date')
+    result = dict(COST_POLICY, **{k: policy[k] for k in keys})
+    result['basis'] = 'supplied BigModel reference rates; no cache discount; not verified billing'
+    CostBudget(lambda *x: None, policy=result, completion_cap=4096)
+    return result
+
+
+def encode_request(config, messages, limits, payload_options=None):
+    request = {'model': config['T1_MODEL_ID'], 'messages': messages,
+               'tools': TOOLS, 'tool_choice': 'auto', 'parallel_tool_calls': False,
+               'max_completion_tokens': limits['completion_tokens_per_request'],
+               'n': 1, 'stream': False}
+    if payload_options:
+        request.pop('max_completion_tokens')
+        request.update(payload_options)
+        if config['T1_ENDPOINT_URL'] == provider.BIGMODEL_ENDPOINT:
+            request.pop('n')
+            request.pop('parallel_tool_calls')
+    return provider.encode(request)
+
+
+def review_exposure(root, assignment, config, read=None, workspace_files=None, token_counter=None):
+    """Build the same first request from verified local files or actual tool reads."""
+    target = root / 'targets' / assignment['target']
+    if workspace_files is None:
+        workspace = target / 'workspace'
+        workspace_files = [p.relative_to(workspace).as_posix() for p in workspace.rglob('*') if p.is_file()]
+    system = ('Work within /workspace using the available read and shell tools. Do not edit files. '
+              'Stop with a final answer when evidence is sufficient.\nWorkspace files: ' +
+              ', '.join(sorted(workspace_files)))
+    hashes = {}
+    if assignment['condition']['skill_present']:
+        system += ('\nUse adversarial-thinking in review mode. The following two assigned instruction files '
+                   'are explicitly loaded.\n')
+        for path in ('SKILL.md', 'references/review.md'):
+            raw = (target / 'skill' / path).read_bytes() if read is None else read('/skills/' + path).encode('utf-8')
+            hashes[path] = hashlib.sha256(raw).hexdigest()
+            system += '\n--- ' + path + ' ---\n' + raw.decode('utf-8')
+    payload = encode_request(config, [{'role': 'system', 'content': system},
+                                     {'role': 'user', 'content': assignment['case']['prompt']}],
+                             REVIEW_LIMITS, REVIEW_OPTIONS)
+    estimate = local_input_estimate(payload, token_counter) if token_counter is not None else {}
+    if (len(payload) > REVIEW_LIMITS['request_bytes'] or
+            estimate.get('input_tokens_reserved', len(payload)) + 4096 >
+            REVIEW_LIMITS['reported_total_token_stop_threshold_per_run']):
+        raise ValueError('explicit-review first request exceeds budget')
+    return system, {'instruction_sha256': hashes, 'first_request_sha256': hashlib.sha256(payload).hexdigest(),
+                    'first_request_bytes': len(payload), **estimate}
 
 
 def continuation_context(previous, current, manifest):
@@ -69,7 +199,18 @@ def continuation_context(previous, current, manifest):
             'partial_run_policy': 'restart incomplete target with fresh messages; retain all prior cost and attempts'}
 
 
-def make_plan(root, config, previous=None):
+def make_plan(root, config, previous=None, *, profile='discovery', cost_policy=None, tokenizer_dir=None):
+    if profile not in ('discovery', 'explicit-review'):
+        raise ValueError('unknown execution profile')
+    if profile == 'discovery' and (cost_policy is not None or tokenizer_dir is not None):
+        raise ValueError('custom reference/tokenizer policy requires explicit-review')
+    if profile == 'explicit-review':
+        if previous is not None:
+            raise ValueError('explicit-review requires a separately reviewed fresh batch; no continuation')
+        cost_policy = review_cost_policy(config, cost_policy)
+        if tokenizer_dir is None:
+            raise ValueError('explicit-review requires pinned local tokenizer assets')
+        token_counter = ReviewTokenCounter(tokenizer_dir)
     manifest = isolation.load_manifest(root)
     # Require actual completed offline evidence; never synthesize it from assignments.
     summary = provider.strict_json((root / 'offline-evidence/summary.json').read_bytes())
@@ -97,6 +238,15 @@ def make_plan(root, config, previous=None):
             'Before dispatch, request bytes plus completion cap are compared with remaining '
             'tokens as a conservative guard, not a proven tokenizer bound. A response can '
             'cross 16000; abort and record the overrun. No claim of billing cap or T0 budget parity.'}
+    if profile == 'explicit-review':
+        result.update(execution_profile=profile, limits=REVIEW_LIMITS, payload_options=REVIEW_OPTIONS,
+                      cost_policy=cost_policy, input_token_policy=token_counter.policy,
+                      exposure={a['target']: review_exposure(root, a, config, token_counter=token_counter)[1]
+                                for a in manifest['assignments']},
+                      input_token_limit_note='Before dispatch, prior reported usage plus pinned local input tokens '
+                      'plus 512 margin plus completion cap must fit 16000. Wire bytes are checked separately. '
+                      'Observed input usage above the reserved estimate stops the batch after recording the response. '
+                      'Local template parity and the margin are unverified for hosted billing; not a hard billing cap.')
     result['continuation'] = continuation_context(previous, result, manifest)
     return result
 
@@ -238,8 +388,11 @@ def parse_response(data):
 
 
 def run_agent(config, prompt, discovery, execute_tool, before_send, record,
-              send=bounded_send, clock=time.monotonic, cost_budget=None, pacer=None, limits=None, payload_options=None):
+              send=bounded_send, clock=time.monotonic, cost_budget=None, pacer=None, limits=None, payload_options=None,
+              system_message=None, first_request_sha256=None, token_counter=None):
     limits = LIMITS if limits is None else limits
+    if first_request_sha256 is not None and token_counter is None:
+        raise ValueError('explicit-review requires a local tokenizer')
     started = clock()
     paused = 0
     def active_elapsed():
@@ -249,24 +402,22 @@ def run_agent(config, prompt, discovery, execute_tool, before_send, record,
         'Skill files listed below may be read when their description matches the task. '
         'Use their instructions when applicable. Stop with a final answer when evidence is sufficient.\n'
         + discovery}, {'role': 'user', 'content': prompt}]
+    if system_message is not None:
+        messages[0]['content'] = system_message
     calls, tokens, tool_count, ids = 0, 0, 0, set()
     while calls < limits['model_requests_per_run']:
         remaining = limits['run_deadline_seconds'] - active_elapsed()
         if remaining <= 0: raise ValueError('run deadline exceeded')
-        request = {'model': config['T1_MODEL_ID'], 'messages': messages,
-                                  'tools': TOOLS, 'tool_choice': 'auto', 'parallel_tool_calls': False,
-                                  'max_completion_tokens': limits['completion_tokens_per_request'],
-                                  'n': 1, 'stream': False}
-        if payload_options:
-            request.pop('max_completion_tokens')
-            request.update(payload_options)
-            if config['T1_ENDPOINT_URL'] == provider.BIGMODEL_ENDPOINT:
-                request.pop('n')
-                request.pop('parallel_tool_calls')
-        payload = provider.encode(request)
+        payload = encode_request(config, messages, limits, payload_options)
         if len(payload) > limits['request_bytes']:
             raise ValueError('request byte budget exhausted')
-        if tokens + len(payload) + limits['completion_tokens_per_request'] > limits['reported_total_token_stop_threshold_per_run']:
+        estimate = local_input_estimate(payload, token_counter) if token_counter is not None else {}
+        if first_request_sha256 is not None or token_counter is not None:
+            request_hash = hashlib.sha256(payload).hexdigest()
+            if calls == 0 and first_request_sha256 is not None and request_hash != first_request_sha256:
+                raise ValueError('first request differs from reviewed exposure')
+            record('request', calls + 1, {'sha256': request_hash, 'bytes': len(payload), **estimate})
+        if tokens + estimate.get('input_tokens_reserved', len(payload)) + limits['completion_tokens_per_request'] > limits['reported_total_token_stop_threshold_per_run']:
             raise ValueError('conservative token dispatch guard exhausted')
         if pacer is not None:
             waited = pacer.wait()
@@ -289,6 +440,8 @@ def run_agent(config, prompt, discovery, execute_tool, before_send, record,
             cost_budget.observe(data)
         choice, usage = parse_response(data)
         tokens += usage['total_tokens']
+        if token_counter is not None and usage['prompt_tokens'] > estimate['input_tokens_reserved']:
+            raise ValueError('reported input tokens exceeded local estimate reservation')
         if tokens > limits['reported_total_token_stop_threshold_per_run'] or usage['completion_tokens'] > limits['completion_tokens_per_request']:
             raise ValueError('reported token budget exceeded')
         if active_elapsed() >= limits['run_deadline_seconds']:
@@ -355,12 +508,20 @@ def run_agent(config, prompt, discovery, execute_tool, before_send, record,
 
 def execute(root, config, approved, authorization):
     previous = (approved.get('continuation') or {}).get('plan_sha256')
-    current = make_plan(root, config, previous)
+    profile = approved.get('execution_profile', 'discovery')
+    tokenizer_dir = (approved.get('input_token_policy') or {}).get('directory') if profile == 'explicit-review' else None
+    current = make_plan(root, config, previous, profile=profile,
+                        cost_policy=approved.get('cost_policy') if profile == 'explicit-review' else None,
+                        tokenizer_dir=tokenizer_dir)
     if approved != current or authorization != digest(current):
         raise ValueError('reviewed plan/config/code/evidence mismatch')
     if config['T1_SUPPORTS_TOOL_CALLS'] != 'true':
         raise ValueError('tool support not declared')
-    ledger = provider.RUNS / ('shakedown-' + digest(current))
+    token_counter = ReviewTokenCounter(tokenizer_dir) if profile == 'explicit-review' else None
+    if token_counter is not None and token_counter.policy != current['input_token_policy']:
+        raise ValueError('tokenizer policy changed after plan validation')
+    prefix = 'shakedown-explicit-review-' if profile == 'explicit-review' else 'shakedown-'
+    ledger = provider.RUNS / (prefix + digest(current))
     ledger.mkdir(mode=0o700)
     # Claim is durable before any invocation; replay is forbidden for this plan.
     provider.write_new(ledger / 'plan.json', current)
@@ -379,7 +540,9 @@ def execute(root, config, approved, authorization):
         provider.write_new(ledger / f'cost-{number:03d}-{kind}.json', value)
         if kind == 'observed':
             print('reference cost estimate CNY ' + value['estimated_cost_cny'] + '/3.000000', flush=True)
-    cost_budget = CostBudget(cost_event, carried=continuation['cost_monitor'] if continuation else None)
+    cost_budget = CostBudget(cost_event, carried=continuation['cost_monitor'] if continuation else None,
+                             policy=current.get('cost_policy'),
+                             completion_cap=current.get('limits', LIMITS)['completion_tokens_per_request'])
     pacer = RequestPacer()
     # Include an initial cooldown when continuing a failed batch in a new process.
     if continuation: pacer.finished()
@@ -399,7 +562,17 @@ def execute(root, config, approved, authorization):
             isolation.check_receipt(observed, a)
             provider.write_new(run / 'isolation-before.json', observed)
             discovery = 'Workspace files: ' + ', '.join(observed['runtime']['workspace_files'])
-            if observed['receipt']['skill_present']:
+            agent_options = {}
+            if profile == 'explicit-review':
+                system, exposure = review_exposure(root, a, config,
+                    read=lambda path: isolation.invoke(root, a, {'name': 'read', 'arguments': {'path': path}})['content'],
+                    workspace_files=observed['runtime']['workspace_files'], token_counter=token_counter)
+                if exposure != current['exposure'][a['target']]:
+                    raise ValueError('mounted instruction exposure differs from reviewed plan')
+                provider.write_new(run / 'exposure.json', exposure)
+                agent_options = dict(system_message=system, first_request_sha256=exposure['first_request_sha256'],
+                                     limits=current['limits'], payload_options=current['payload_options'], token_counter=token_counter)
+            elif observed['receipt']['skill_present']:
                 text = isolation.invoke(root, a, {'name': 'read', 'arguments': {'path': '/skills/SKILL.md'}})['content']
                 if not text.startswith('---\n') or '\n---\n' not in text[4:]:
                     raise ValueError('invalid skill discovery header')
@@ -411,7 +584,7 @@ def execute(root, config, approved, authorization):
                                lambda n, v: isolation.invoke(root, a, {'name': n, 'arguments': v}),
                                lambda n: provider.write_new(run / f'attempt-{n}.json',
                                           {'attempt': n, 'time': time.time(), 'outcome': 'unknown_before_send'}),
-                               persist, cost_budget=cost_budget, pacer=pacer)
+                               persist, cost_budget=cost_budget, pacer=pacer, **agent_options)
             after = isolation.invoke(root, a, {'operation': 'inspect'})
             isolation.check_receipt(after, a)
             if after['receipt'] != observed['receipt']:
@@ -444,16 +617,24 @@ def main():
     parser.add_argument('--authorize-plan-sha256')
     parser.add_argument('--plan', type=Path, help='explicit new plan file; existing plans are never overwritten')
     parser.add_argument('--previous-plan-sha256', help='plan only: reviewed failed batch whose budget and completed targets carry forward')
+    parser.add_argument('--profile', choices=['discovery', 'explicit-review'],
+                        help='plan only: default discovery; explicit-review loads the two frozen Review instruction files')
+    parser.add_argument('--cost-policy', type=Path, help='plan only: required dated model-specific reference-rate JSON for explicit-review')
+    parser.add_argument('--tokenizer-dir', type=Path, help='plan only: required local pinned GLM tokenizer/template directory for explicit-review')
     args = parser.parse_args()
     try:
         config = provider.load_config()
         plan_path = args.plan or args.root / 'shakedown-plan.controller.json'
         if args.command == 'plan':
-            plan = make_plan(args.root, config, args.previous_plan_sha256)
+            policy = provider.strict_json(args.cost_policy.read_bytes()) if args.cost_policy else None
+            plan = make_plan(args.root, config, args.previous_plan_sha256,
+                             profile=args.profile or 'discovery', cost_policy=policy, tokenizer_dir=args.tokenizer_dir)
             provider.write_new(plan_path, plan)
-            print(json.dumps({'plan': str(plan_path), 'plan_sha256': digest(plan), 'limits': LIMITS,
-                              'model': plan['provider']['model'], 'cost_usd': None, 'cost_policy': COST_POLICY}, indent=2))
+            print(json.dumps({'plan': str(plan_path), 'plan_sha256': digest(plan), 'limits': plan['limits'],
+                              'model': plan['provider']['model'], 'cost_usd': None, 'cost_policy': plan['cost_policy']}, indent=2))
         else:
+            if args.profile or args.cost_policy or args.previous_plan_sha256 or args.tokenizer_dir:
+                raise ValueError('run uses only the reviewed plan, not plan-time options')
             approved = provider.strict_json(plan_path.read_bytes())
             print(json.dumps(execute(args.root, config, approved, args.authorize_plan_sha256), indent=2))
         return 0
