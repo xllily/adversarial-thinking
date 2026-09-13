@@ -1,0 +1,63 @@
+{
+  "base_commit": "c9f46037db16de41a75dcf7f5b236ac5ffd996e8",
+  "model": "GLM-5.3-Flash",
+  "host": "VS Code Kilo",
+  "evidence_class": "native supplied-evidence diagnostic; not isolated or blind scored",
+  "source_sha256": {
+    "cases.public.json": "662d68a924764cef5189027eeeb79b15b8fc2980e92fe4b726aa9e6621f2d94b",
+    "gold.controller.json": "73dd05d9700aa5502dc93794edf23398055eb1f5240798b84dfb3edaee671d46",
+    "candidate.patch": "c566a07acba5504a8c675f3096ca4be8ef1d35d29bebb9346004ebf84fcd7558",
+    "prepare.py": "e7f9a1f92e7b5f4dd1ca6afc17dbb26b3ab5050deb9800717de452b870a9e0a1"
+  },
+  "prompts": [
+    {
+      "file": "01.txt",
+      "case": "rq-01",
+      "condition": "current",
+      "sha256": "89d0bb0a7e3a768e9e3561204e3d23b740236a4ea4db0fdc5915834f7ba7fdca"
+    },
+    {
+      "file": "02.txt",
+      "case": "rq-01",
+      "condition": "candidate",
+      "sha256": "0613f92a5d6ef08724b2409224d8f97d4c0f2097eb87d4612606f6a7cd5a2414"
+    },
+    {
+      "file": "03.txt",
+      "case": "rq-02",
+      "condition": "candidate",
+      "sha256": "9d6001f0558432ebf5309e6439e4fe41fdccaa9b755dba4ae78db0626f816585"
+    },
+    {
+      "file": "04.txt",
+      "case": "rq-02",
+      "condition": "current",
+      "sha256": "5373e68da55d759f5006a6ef09d1614f182bafdf932e28b5ad71e83607d28c63"
+    },
+    {
+      "file": "05.txt",
+      "case": "rq-03",
+      "condition": "current",
+      "sha256": "b32397372b170d0dcc6fed60c7efafe1773e6e12c49f00568d089a960756462b"
+    },
+    {
+      "file": "06.txt",
+      "case": "rq-03",
+      "condition": "candidate",
+      "sha256": "05f5396e3acfcf1a65930d1fe60a687ed9982bd9596ab758eca8628e81dd1a37"
+    },
+    {
+      "file": "07.txt",
+      "case": "rq-04",
+      "condition": "candidate",
+      "sha256": "16d0019706c0805bb2dbb925eef6988393646cbf587c08fa533acf84f4690bbd"
+    },
+    {
+      "file": "08.txt",
+      "case": "rq-04",
+      "condition": "current",
+      "sha256": "7c748ac31dc26b29ea7bdbf502b4f7a21056bad21cf257202ed249e9cb62588a"
+    }
+  ],
+  "model_calls": 0
+}

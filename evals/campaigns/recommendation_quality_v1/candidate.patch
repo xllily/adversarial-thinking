@@ -1,0 +1,11 @@
+--- a/references/review.md
++++ b/references/review.md
+@@ -21,6 +21,8 @@
+ 5. Run one omission check for a consequential failure class not covered by the selected lenses. Inspect it only if it could change the verdict.
+ 6. Set severity from evidence, impact, and failure conditions—not reviewer count. Use **sound**, **risky**, **not ready**, or **insufficient evidence** when a verdict helps.
+ 
++Before recommending a correction, check it against the same evidence standard as the proposal: preserve existing steps accurately, verify its prerequisites and ordering against the supplied constraints, and do not introduce an unsupported safety or reversibility claim. If no correction is needed, retain the supported course without inventing a new gate.
++
+ For a review of another review, inspect the underlying artifact and evidence before revealing the target diagnosis for comparison.
+ 
+ ## Output and completion

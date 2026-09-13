@@ -35,6 +35,19 @@ Published evidence:
   no model response and no behavioral score.
 - [Native Kilo checks and prompt-only pairs](reports/2026-09-05-kilo-ui-skill-check.md):
   actual tool-loading observations and their limits.
+- [Practice-derived cases](reports/2026-09-13-practice-cases.md): two retrospective
+  decisions motivate three behavioral specifications, including a positive contrast.
+- [Native Kilo Flash diagnostic](reports/2026-09-13-kilo-flash-diagnostic.md): eight
+  completed sessions; matching final decisions, with recommendation-quality gaps.
+- [Recommendation-quality comparison](reports/2026-09-13-recommendation-quality.md):
+  stopped after two of eight planned sessions when the candidate proposed an unsafe
+  correction. The [four-case freeze](campaigns/recommendation_quality_v1/) retains
+  the rejected patch for reproducibility; current v0.1.1 remains unchanged.
+
+The September 13 reports contain manual observations and selected output
+excerpts, not complete exported native transcripts or verified usage records.
+The 39 entries in `evals.json` and the four recommendation-quality campaign cases
+are separate specification sets, not counts of successful model trials.
 
 ## Evaluation protocol
 

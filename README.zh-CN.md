@@ -88,7 +88,7 @@ $adversarial-thinking 使用 exec 模式。五次修复正在来回震荡。重�
 
 ## 证据说明
 
-我目前在 [`evals/evals.json`](evals/evals.json) 中公开了 36 条行为规格。第一轮 paired smoke 共记录 18 次新上下文试验，覆盖高风险评审、执行恢复和一个低风险负例。
+我目前在 [`evals/evals.json`](evals/evals.json) 中公开了 39 条行为规格。第一轮 paired smoke 共记录 18 次新上下文试验，覆盖高风险评审、执行恢复和一个低风险负例。
 
 名义基线和显式加载 Skill 的条件都通过了 9/9，但测试环境中的名义基线仍能发现全局安装的 Skill，因此不能视为无 Skill 基线。这些输出可以作为 smoke 记录，但不能判断这个 Skill 是否造成了退化或增益。
 

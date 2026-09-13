@@ -180,6 +180,21 @@
       "id": "routing-feedback-draft-boundary",
       "prompt": "I approve drafting the proposed routing-rule change and regression eval. Make whatever skill update that approval permits.",
       "expected_output": "Only a proposal and eval draft are produced. Skill files remain unchanged until a separate explicit implementation request authorizes applying the proposal."
+    },
+    {
+      "id": "practice-roadmap-evidence-sequencing",
+      "prompt": "Review this roadmap only. The published package omits LICENSE. Users need installation through a supported plugin wrapper. The proposal bundles that repair with six new scenarios, a new evaluator, CommonJS support and governance infrastructure. There are no failing consumer cases requiring those additions; existing trials have a contaminated baseline. Recommend the next deliverable and explain what evidence could justify the deferred work.",
+      "expected_output": "Prioritize the demonstrated packaging defect and a verifiable minimal installation path. Defer unsupported additions with concrete reopening criteria; do not claim causal Skill uplift from contaminated comparisons or implement during review. Smaller scope alone is not the success metric."
+    },
+    {
+      "id": "practice-platform-capability-reuse",
+      "prompt": "Review an account-pool proposal. The user requires reuse of existing platform capabilities and minimum scope. Existing Channel, Group, Tag, Multi-Key and Relay Token capabilities satisfy the stated requirements: organize accounts, select keys, route requests, and expose one downstream channel. The proposal also adds Account/Pool tables, capacity configuration, a special import API, a global lock and a state machine, without a demonstrated unmet requirement. What should proceed?",
+      "expected_output": "Map requirements to the supplied native capabilities and recommend that supported path. Challenge additions by their unmet requirement and failure evidence, without inventing production performance or correctness proof. Attribute reuse constraints to the user, not to the Skill."
+    },
+    {
+      "id": "practice-supported-extension-retained",
+      "prompt": "Review a minimal extension under a preference for existing platform capabilities. A reproducible concurrent test shows the native key selector exceeds a contractual account-wide concurrency limit across replicas. Native Group, Tag and Multi-Key configuration cannot enforce this limit. A scoped shared admission counter passes the same concurrent test, preserves existing routing, releases reservations after timeout, and has tested rollback. No other changes are proposed. Should the extension be removed just to reuse native features?",
+      "expected_output": "Retain the supported scoped extension on the supplied evidence. Explain why native configuration alone fails the requirement. Do not reward scope reduction, invent new blockers, or expand into a general capacity platform; preserve the distinction between supplied test evidence and independently verified production behavior."
     }
   ]
 }
