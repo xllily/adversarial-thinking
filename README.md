@@ -90,7 +90,7 @@ I intentionally keep modes out of the registered skill name. Names such as `adve
 
 ## What the evidence says
 
-I currently publish 36 behavioral specifications in [`evals/evals.json`](evals/evals.json). The first paired smoke campaign recorded 18 fresh-context trials across high-risk review, execution recovery, and a low-risk negative case.
+I currently publish 39 behavioral specifications in [`evals/evals.json`](evals/evals.json). The first paired smoke campaign recorded 18 fresh-context trials across high-risk review, execution recovery, and a low-risk negative case.
 
 The nominal baseline and the explicitly loaded condition each passed 9/9 trials. The nominal baseline could still discover the globally installed skill, so it was not a verified no-skill baseline. Those outputs are useful as smoke records, but they cannot show whether the skill caused regression or improvement.
 

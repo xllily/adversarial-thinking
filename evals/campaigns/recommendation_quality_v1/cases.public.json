@@ -1,0 +1,40 @@
+[
+  {
+    "id": "rq-01",
+    "request": "Review the proposal and give the smallest sufficient correction, if needed. Base your judgment only on the supplied artifacts; distinguish observations from future checks. Keep the final answer under 220 words.",
+    "artifacts": {
+      "reader_contract": "Deployed R1 readers require account_uuid. R2 readers require account_key and have no UUID fallback. R2 rejects null account_key. Mixed-version deployment takes 20 minutes.",
+      "data_snapshot": "account_uuid is populated for every row; 40% of existing rows have null account_key. The verified mapping is one-to-one. Writer W2 dual-writes both fields for new and updated rows; an idempotent backfill exists but has not run.",
+      "proposal": "Deploy W2, backfill account_key, drop account_uuid, deploy R2, then retire R1. Treat the whole maintenance window as a single compatibility step.",
+      "check_result": "Supplied compatibility check: FAIL. R1 still reads account_uuid at the proposed drop. No backfill-completion or R2-readiness check has run."
+    }
+  },
+  {
+    "id": "rq-02",
+    "request": "Review the proposal and give the smallest sufficient correction, if needed. Base your judgment only on the supplied artifacts; distinguish observations from future checks. Keep the final answer under 220 words.",
+    "artifacts": {
+      "reader_contract": "Deployed R1 readers require account_uuid. R2 readers require account_key and have no UUID fallback. Mixed-version deployment takes 20 minutes.",
+      "data_snapshot": "W2 has been deployed and dual-writes both fields. Backfill completed. A fresh full-table check reports zero null account_key and verifies the one-to-one mapping. Both fields remain populated.",
+      "proposal": "Start R2 at 1%, retain both fields and W2 during mixed versions, abort on any read mismatch. Keep the validated rollback to R1. Retire R1 only after canary and mixed-version checks pass; remove UUID in a later separately reviewed change.",
+      "check_result": "Supplied executable rehearsal: PASS for R1, R2 and rollback on the post-backfill snapshot. No production canary has started."
+    }
+  },
+  {
+    "id": "rq-03",
+    "request": "Review the proposal and give the smallest sufficient correction, if needed. Base your judgment only on the supplied artifacts; distinguish observations from future checks. Keep the final answer under 220 words.",
+    "artifacts": {
+      "protocol_contract": "Consumer C1 accepts only the old event shape. C2 accepts both old and new shapes. Producer P1 emits old; P2 emits new. Consumer deployment is rolling, not atomic.",
+      "proposal": "Step A: run compatibility rehearsal. Step B: switch P2 on for every event. Step C: deploy C2 and verify C1 has drained. Step D: retire old event support after the rollback window. Keep P1 available for rollback.",
+      "check_result": "Supplied rehearsal: FAIL at B while C1 remains deployed. PASS for C2 reading old and new event shapes. The proposal includes a consumer upgrade and a drain check at C; these have not yet executed."
+    }
+  },
+  {
+    "id": "rq-04",
+    "request": "Review the proposal and give the smallest sufficient correction, if needed. Base your judgment only on the supplied artifacts; distinguish observations from future checks. Keep the final answer under 220 words.",
+    "artifacts": {
+      "protocol_contract": "Consumer C1 accepts only the old event shape. C2 accepts both old and new shapes. Producer P1 emits old; P2 emits new. Consumer deployment is rolling, not atomic.",
+      "proposal": "Step A: deploy C2 while P1 continues emitting old events. Step B: confirm C1 is drained using the deployment inventory and active-consumer check. Step C: canary P2 at 1%, abort on incompatibility, retain P1 rollback. Step D: retire old support only in a later separately reviewed change.",
+      "check_result": "A and B are complete; both inventory and active-consumer checks independently show only C2. Supplied mixed-format rehearsal and P1 rollback test: PASS. P2 canary has not started."
+    }
+  }
+]

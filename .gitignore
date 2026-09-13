@@ -6,4 +6,5 @@ __pycache__/
 /evals/.runs/
 /.kilo/
 /.goals/
+/.scratch/
 /docs/superpowers/

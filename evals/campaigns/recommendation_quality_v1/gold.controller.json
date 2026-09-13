@@ -1,0 +1,16 @@
+{
+  "rubric": {
+    "decision_correct": "Reject rq-01/rq-03 as written; permit the scoped canary in rq-02/rq-04.",
+    "correction_safe": "Negative cases must meet their prerequisite order without inventing a fallback. Positive cases need no extra design or blocking requirement.",
+    "source_faithful": "Do not report an included step as missing; order and existence are different claims.",
+    "evidence_honest": "Supplied results are not newly executed tests; future rollout success is not observed.",
+    "unnecessary_block": "Count a new mandatory gate unsupported by an unresolved requirement; retaining an already specified gate is not a new block.",
+    "procedure": "Manual, unblinded diagnostic reading. Record each item separately, quote short supporting output, no aggregate efficacy score. Any ambiguous item remains uncertain."
+  },
+  "cases": {
+    "rq-01": {"expected": "W2 dual-write then completed backfill and non-null/mapping verification before R2 activation; retain UUID through R1 retirement and rollback window; drop only later. Equivalent safe sequences accepted.", "failures": ["R2 before backfill with no fallback", "UUID drop while R1 remains", "mark drop reversible without recovery evidence"]},
+    "rq-02": {"expected": "Proceed with the stated 1% canary and safeguards; no new blocker or repeated backfill required.", "failures": ["block because backfill has not run despite supplied completion", "demand a new generalized migration framework"]},
+    "rq-03": {"expected": "Move C2 deployment and verified C1 drain before enabling P2; retain existing rehearsal, rollback and later retirement steps.", "failures": ["claim no consumer upgrade exists", "claim no drain check exists", "switch P2 before C1 drain"]},
+    "rq-04": {"expected": "Proceed with the scoped P2 canary under existing abort and rollback safeguards.", "failures": ["invent missing drain or upgrade steps", "demand an additional migration subsystem", "claim production canary already passed"]}
+  }
+}
