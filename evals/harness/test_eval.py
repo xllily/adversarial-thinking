@@ -117,6 +117,87 @@ class HarnessCliTest(unittest.TestCase):
             self.assertEqual(result.returncode, 2)
             self.assertIn("non-finite JSON number", result.stderr)
 
+    def test_prepare_rejects_overflow_before_creating_output(self) -> None:
+        for literal in ("1e999", "-1e999"):
+            for filename in ("gold.controller.json", "campaign.json"):
+                with self.subTest(literal=literal, filename=filename), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    campaign = make_campaign(root)
+                    source = campaign / filename
+                    if filename == "gold.controller.json":
+                        content = source.read_text().replace('"revise": 1.0', f'"revise": {literal}')
+                    else:
+                        content = source.read_text().replace('"config": {}', f'"config": {{"temperature": {literal}}}')
+                    source.write_text(content)
+
+                    for command in ("validate", "prepare"):
+                        args = [command, "--campaign", str(campaign)]
+                        output = root / "prepared"
+                        if command == "prepare":
+                            args += ["--output", str(output)]
+                        result = self.run_cli(*args)
+                        self.assertEqual(result.returncode, 2, result.stderr)
+                        self.assertIn("non-finite JSON number", result.stderr)
+                        self.assertNotIn("Traceback", result.stderr)
+                        self.assertFalse(output.exists())
+
+    def test_validate_rejects_duplicate_json_fields(self) -> None:
+        replacements = (
+            ('"schema_version": 1', '"schema_version": 2, "schema_version": 1'),
+            ('"config": {}', '"config": {"temperature": 1, "temperature": 0}'),
+        )
+        for original, duplicate in replacements:
+            with self.subTest(duplicate=duplicate), tempfile.TemporaryDirectory() as directory:
+                campaign = make_campaign(Path(directory))
+                source = campaign / "campaign.json"
+                source.write_text(source.read_text().replace(original, duplicate))
+                result = self.run_cli("validate", "--campaign", str(campaign))
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn("duplicate JSON field", result.stderr)
+
+    def test_schema_version_requires_integer_in_campaign_and_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            campaign = make_campaign(root)
+            prepared = root / "prepared"
+            result = self.run_cli("prepare", "--campaign", str(campaign), "--output", str(prepared))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            runs = root / "runs.json"
+            write_json(runs, [])
+            for source, command in (
+                (campaign / "campaign.json", ["validate", "--campaign", str(campaign)]),
+                (prepared / "manifest.controller.json", [
+                    "blind", "--mapping", str(prepared / "manifest.controller.json"),
+                    "--runs", str(runs), "--output", str(root / "blind.json"),
+                ]),
+            ):
+                data = json.loads(source.read_text())
+                for invalid_version in (True, 1.0):
+                    with self.subTest(source=source.name, version=invalid_version):
+                        write_json(source, dict(data, schema_version=invalid_version))
+                        result = self.run_cli(*command)
+                        self.assertEqual(result.returncode, 2, result.stderr)
+                        self.assertIn("schema_version must be", result.stderr)
+
+    def test_campaign_rejects_symlink_escape_but_allows_internal_link(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            campaign = make_campaign(root)
+            cases = campaign / "cases.public.json"
+            external = root / "external.json"
+            cases.rename(external)
+            cases.symlink_to(external)
+            result = self.run_cli("validate", "--campaign", str(campaign))
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("must stay inside campaign directory", result.stderr)
+
+            cases.unlink()
+            internal = campaign / "internal.json"
+            external.rename(internal)
+            cases.symlink_to(internal)
+            result = self.run_cli("validate", "--campaign", str(campaign))
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_validate_requires_exactly_one_skill_absent_control(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -489,27 +570,36 @@ class HarnessCliTest(unittest.TestCase):
             control = assignments["c0-control"]
             treatment = assignments["c1-current"]
             usage = {"tokens": 10, "calls": 1, "latency_ms": 20, "cost_usd": 0.0}
+            raw_runs_path = root / "raw.json"
             write_json(
-                runs_path,
+                raw_runs_path,
                 [
                     {
-                        "run_id": control["run_id"],
+                        "run_id": assignment["run_id"],
                         "case_id": "case-1",
-                        "condition_id": "c0-control",
+                        "condition_id": assignment["condition_id"],
                         "replicate": 1,
-                        "scorable": True,
+                        "model": {"name": "synthetic", "version": "1", "config": {}},
+                        "bundle_hash": assignment["bundle_hash"],
+                        "isolation_receipt": {
+                            "skill_present": assignment["skill_present"],
+                            "bundle_hash": assignment["bundle_hash"],
+                            "workspace_hash": "sha256:workspace",
+                            "allowed_tools": ["read"],
+                            "budget_profile": "small",
+                        },
+                        "complete_output": "Synthetic output.",
+                        "tool_trace": [],
                         "usage": usage,
-                    },
-                    {
-                        "run_id": treatment["run_id"],
-                        "case_id": "case-1",
-                        "condition_id": "c1-current",
-                        "replicate": 1,
-                        "scorable": True,
-                        "usage": usage,
-                    },
+                    }
+                    for assignment in (control, treatment)
                 ],
             )
+            ingested = self.run_cli(
+                "ingest", "--campaign", str(campaign), "--mapping", str(mapping_path),
+                "--runs", str(raw_runs_path), "--output", str(runs_path),
+            )
+            self.assertEqual(ingested.returncode, 0, ingested.stderr)
             score_records = [
                 score(control["blind_run_id"], "keep", 0.0, False, "W_TO_W"),
                 score(treatment["blind_run_id"], "revise", 1.0, True, "W_TO_C"),
@@ -566,6 +656,8 @@ class HarnessCliTest(unittest.TestCase):
 
             normalized = json.loads(runs_path.read_text(encoding="utf-8"))
             normalized[0]["scorable"] = False
+            normalized[0]["isolation_receipt"] = None
+            normalized[0]["isolation_errors"] = ["missing isolation receipt"]
             write_json(runs_path, normalized)
             result = self.run_cli(
                 "summarize",
@@ -583,9 +675,107 @@ class HarnessCliTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             summary = json.loads(output_path.read_text(encoding="utf-8"))
             self.assertEqual(summary["conditions"]["c0-control"]["scorable_count"], 0)
+            self.assertEqual(summary["conditions"]["c0-control"]["unscorable_count"], 1)
             self.assertEqual(
                 summary["comparisons"]["c1-current_vs_c0-control"]["paired_count"], 0
             )
+
+    def test_summarize_rechecks_normalized_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            campaign = make_campaign(root)
+            prepared = root / "prepared"
+            result = self.run_cli(
+                "prepare", "--campaign", str(campaign), "--output", str(prepared),
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            mapping_path = prepared / "manifest.controller.json"
+            assignment = json.loads(mapping_path.read_text())["assignments"][0]
+            raw = {
+                **{field: assignment[field] for field in (
+                    "run_id", "case_id", "condition_id", "replicate", "bundle_hash"
+                )},
+                "model": {"name": "synthetic", "version": "1", "config": {}},
+                "isolation_receipt": None,
+                "complete_output": "Synthetic output.",
+                "tool_trace": [],
+                "usage": {"tokens": 10, "calls": 1, "latency_ms": 20, "cost_usd": 0},
+            }
+            raw_path, runs_path = root / "raw.json", root / "normalized.json"
+            scores_path, output_path = root / "scores.json", root / "summary.json"
+            write_json(raw_path, [raw])
+            result = self.run_cli(
+                "ingest", "--campaign", str(campaign), "--mapping", str(mapping_path),
+                "--runs", str(raw_path), "--output", str(runs_path),
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            original = json.loads(runs_path.read_text())[0]
+            self.assertFalse(original["scorable"])
+            write_json(scores_path, [{
+                "blind_run_id": assignment["blind_run_id"],
+                "final_action": "revise", "utility": 1.0, "decision_correct": True,
+                "transition": "W_TO_C", "supported_defect_ids": ["d1"],
+                "unsupported_finding_count": 0, "discriminator_status": "effective",
+                "bad_verifier_accepted": False, "proposal_as_observation": False,
+                "stop_compliance": True, "authorization_violations": 0,
+            }])
+
+            mutations = [
+                ("scorable", True, "scorable disagrees with isolation evidence"),
+                ("isolation_errors", [], "isolation_errors disagrees with isolation evidence"),
+                ("scorable", 1, "scorable must be boolean"),
+                ("isolation_errors", "missing", "isolation_errors must be an array"),
+                ("model", {"name": "other", "version": "1", "config": {}},
+                 "model disagrees with campaign execution profile"),
+            ]
+            for field, value, message in mutations:
+                with self.subTest(field=field, value=value):
+                    changed = dict(original, **{field: value})
+                    write_json(runs_path, [changed])
+                    result = self.run_cli(
+                        "summarize", "--campaign", str(campaign),
+                        "--mapping", str(mapping_path), "--runs", str(runs_path),
+                        "--scores", str(scores_path), "--output", str(output_path),
+                    )
+                    self.assertEqual(result.returncode, 2, result.stderr)
+                    self.assertIn(message, result.stderr)
+                    self.assertFalse(output_path.exists())
+
+            for field in ("model", "bundle_hash", "isolation_receipt",
+                          "complete_output", "tool_trace", "isolation_errors"):
+                with self.subTest(missing_field=field):
+                    changed = dict(original)
+                    del changed[field]
+                    write_json(runs_path, [changed])
+                    result = self.run_cli(
+                        "summarize", "--campaign", str(campaign),
+                        "--mapping", str(mapping_path), "--runs", str(runs_path),
+                        "--scores", str(scores_path), "--output", str(output_path),
+                    )
+                    self.assertEqual(result.returncode, 2, result.stderr)
+                    self.assertIn(f"missing fields: {field}", result.stderr)
+                    self.assertFalse(output_path.exists())
+
+            # A fresh manifest for the same IDs cannot make old model evidence current.
+            metadata_path = campaign / "campaign.json"
+            metadata = json.loads(metadata_path.read_text())
+            metadata["execution_profile"]["model"]["version"] = "2"
+            write_json(metadata_path, metadata)
+            new_prepared = root / "new-prepared"
+            result = self.run_cli(
+                "prepare", "--campaign", str(campaign), "--output", str(new_prepared),
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            write_json(runs_path, [original])
+            result = self.run_cli(
+                "summarize", "--campaign", str(campaign),
+                "--mapping", str(new_prepared / "manifest.controller.json"),
+                "--runs", str(runs_path), "--scores", str(scores_path),
+                "--output", str(output_path),
+            )
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("model disagrees with campaign execution profile", result.stderr)
+            self.assertFalse(output_path.exists())
 
     def test_summarize_rejects_campaign_changes_after_prepare(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

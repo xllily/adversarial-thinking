@@ -25,10 +25,12 @@ def response(name=None, arguments=None, call_id='call_1', usage=True):
 class ExplicitReviewTests(unittest.TestCase):
     """Synthetic receipts and responses here are offline test fixtures only."""
     def setUp(self):
-        temp = tempfile.TemporaryDirectory(dir='/private/tmp')
+        temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         self.root = Path(temp.name).resolve() / 'isolation'
-        self.manifest = s.isolation.prepare(self.root)
+        # Synthetic offline fixtures; actual preparation still checks ancestry.
+        with patch.object(s.isolation, 'check_discovery_ancestors'):
+            self.manifest = s.isolation.prepare(self.root)
         self.config = dict(config(), T1_ENDPOINT_URL=s.provider.BIGMODEL_ENDPOINT,
                            T1_MODEL_ID='glm-5.3-flash')
         self.policy = {'model': 'glm-5.3-flash', 'input_cny_per_million': '0.8',
@@ -346,9 +348,12 @@ class TokenizerAssetTests(unittest.TestCase):
         counter = s.ReviewTokenCounter(Path(os.environ['T1_TOKENIZER_DIR']))
         cfg = dict(config(), T1_ENDPOINT_URL=s.provider.BIGMODEL_ENDPOINT, T1_MODEL_ID='glm-5.3-flash')
         expected_c3 = {'migration-compat-01': [1741, 2083, 2131], 'dual-write-06': [1742, 2075, 2121]}
-        with tempfile.TemporaryDirectory(dir='/private/tmp') as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp).resolve() / 'isolation'
-            for a in s.isolation.prepare(root)['assignments']:
+            # This local replay never starts an agent or Docker container.
+            with patch.object(s.isolation, 'check_discovery_ancestors'):
+                manifest = s.isolation.prepare(root)
+            for a in manifest['assignments']:
                 workspace = root / 'targets' / a['target'] / 'workspace'
                 files = sorted(p.name for p in workspace.iterdir())
                 batch = response('read', {'path': files[0]}, 'read_0')

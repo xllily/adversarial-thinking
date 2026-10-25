@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.2 - 2026-10-26
+
+Experimental maintenance release. Behavioral instructions remain unchanged;
+offline controller validation does not establish causal Skill uplift.
+
+- Revalidate normalized run evidence during summarization, including model and isolation claims.
+- Reject duplicate JSON fields, numeric overflow, invalid schema version types, and campaign file references outside their directory.
+- Make synthetic test fixtures portable while preserving the production ancestry guard.
+- Add pinned, read-only offline CI across Linux and macOS with Python 3.10 and 3.12.
+- Preserve frozen campaigns and distinguish offline test results from unperformed integrations.
+
 ## 0.1.1 - 2026-09-07
 
 Experimental release. The current evaluation evidence does not establish causal Skill uplift.

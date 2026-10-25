@@ -29,6 +29,9 @@ secret or rule out prior exposure.
 
 Published evidence:
 
+- [Offline controller validation](reports/2026-10-24-offline-validation.md):
+  evidence revalidation, strict input checks, and portable synthetic tests;
+  94 tests passed, two optional tokenizer tests skipped, no model trials.
 - [Explicit review check](reports/2026-09-05-current-skill-review.md): two cases,
   one sample per condition; both conditions passed without an observed advantage.
 - [GLM discovery diagnostic](reports/2026-09-05-glm-discovery.md): one HTTP 429,
@@ -42,7 +45,7 @@ Published evidence:
 - [Recommendation-quality comparison](reports/2026-09-13-recommendation-quality.md):
   stopped after two of eight planned sessions when the candidate proposed an unsafe
   correction. The [four-case freeze](campaigns/recommendation_quality_v1/) retains
-  the rejected patch for reproducibility; current v0.1.1 remains unchanged.
+  the rejected patch for reproducibility; v0.1.2 retains the v0.1.1 behavioral instructions.
 
 The September 13 reports contain manual observations and selected output
 excerpts, not complete exported native transcripts or verified usage records.

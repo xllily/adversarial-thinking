@@ -49,6 +49,21 @@ gold.controller.json
 
 ## Verification
 
+GitHub Actions runs the dependency-free offline checks on Linux and macOS with
+Python 3.10 and 3.12. All four matrix jobs must pass before merging a controller
+change. The two optional pinned-tokenizer integration tests remain explicit
+skips unless their assets and dependencies are supplied; CI does not run model
+requests, Docker rehearsals, or native installation.
+
+The historical `skill_check.py` and `discovery_check.py` diagnostics compare the
+installed Skill bytes with the frozen v0.1.1 treatment bundle when preparing new
+plans. Preparing these plans against v0.1.2 therefore rejects the mismatch. An
+unused, previously approved `skill_check.py` plan can still execute its embedded
+v0.1.1 payload if its bound code, provider, isolation, authorization, and budget
+checks remain valid. That execution evaluates the embedded v0.1.1 payload, not
+the installed v0.1.2 Skill. Reproduce historical runs from their matching
+revision; leave frozen conditions, hashes, and drift checks intact.
+
 ```sh
 python3 -m unittest evals.harness.test_eval -v
 python3 evals/harness/eval.py self-test

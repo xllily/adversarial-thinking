@@ -22,9 +22,26 @@ def load_json(path: Path) -> Any:
     def reject_constant(value: str) -> None:
         raise ValidationError(f"non-finite JSON number is not allowed: {value}")
 
+    def finite_float(value: str) -> float:
+        number = float(value)
+        if not math.isfinite(number):
+            reject_constant(value)
+        return number
+
+    def unique_fields(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValidationError(f"duplicate JSON field is not allowed: {key}")
+            result[key] = value
+        return result
+
     try:
         return json.loads(
-            path.read_text(encoding="utf-8"), parse_constant=reject_constant
+            path.read_text(encoding="utf-8"),
+            parse_constant=reject_constant,
+            parse_float=finite_float,
+            object_pairs_hook=unique_fields,
         )
     except (OSError, json.JSONDecodeError) as exc:
         raise ValidationError(f"cannot read {path}: {exc}") from exc
@@ -72,7 +89,13 @@ def campaign_file(root: Path, name: Any, field: str) -> Path:
     filename = Path(require_string(name, f"campaign.{field}"))
     if filename.is_absolute() or ".." in filename.parts:
         raise ValidationError(f"campaign.{field} must stay inside campaign directory")
-    return root / filename
+    try:
+        resolved = (root / filename).resolve()
+    except (OSError, RuntimeError) as exc:
+        raise ValidationError(f"cannot resolve campaign.{field}: {exc}") from exc
+    if not resolved.is_relative_to(root.resolve()):
+        raise ValidationError(f"campaign.{field} must stay inside campaign directory")
+    return resolved
 
 
 def validate_campaign(root: Path) -> dict[str, Any]:
@@ -89,8 +112,8 @@ def validate_campaign(root: Path) -> dict[str, Any]:
         },
         "campaign",
     )
-    if metadata["schema_version"] != 1:
-        raise ValidationError("campaign.schema_version must be 1")
+    if type(metadata["schema_version"]) is not int or metadata["schema_version"] != 1:
+        raise ValidationError("campaign.schema_version must be integer 1")
     require_string(metadata["campaign_id"], "campaign.campaign_id")
     execution_profile = require_object(
         metadata["execution_profile"], "campaign.execution_profile"
@@ -265,8 +288,8 @@ def load_manifest(path: Path, campaign: dict[str, Any] | None = None) -> dict[st
         },
         "manifest",
     )
-    if manifest["schema_version"] != 1:
-        raise ValidationError("manifest.schema_version must be 1")
+    if type(manifest["schema_version"]) is not int or manifest["schema_version"] != 1:
+        raise ValidationError("manifest.schema_version must be integer 1")
     require_string(manifest["campaign_id"], "manifest.campaign_id")
     digest = require_string(manifest["campaign_digest"], "manifest.campaign_digest")
     digest_hex = digest.removeprefix("sha256:")
@@ -446,9 +469,14 @@ def require_nonnegative_integer(value: Any, location: str) -> int:
     return value
 
 
-def command_ingest(args: argparse.Namespace) -> None:
-    campaign = validate_campaign(args.campaign)
-    manifest = load_manifest(args.mapping, campaign)
+def validate_runs(
+    raw_runs: list[Any],
+    campaign: dict[str, Any],
+    manifest: dict[str, Any],
+    *,
+    normalized_input: bool = False,
+) -> list[dict[str, Any]]:
+    """Validate original evidence and derive isolation status for every run."""
     assignments: dict[str, dict[str, Any]] = {}
     for item in manifest["assignments"]:
         run_id = require_string(item["run_id"], "manifest assignment run_id")
@@ -459,7 +487,6 @@ def command_ingest(args: argparse.Namespace) -> None:
     conditions = {
         item["condition_id"]: item for item in campaign["conditions"]
     }
-    raw_runs = require_array(load_json(args.runs), "runs")
     run_fields = {
         "run_id",
         "case_id",
@@ -472,6 +499,8 @@ def command_ingest(args: argparse.Namespace) -> None:
         "tool_trace",
         "usage",
     }
+    if normalized_input:
+        run_fields |= {"scorable", "isolation_errors"}
     model_fields = {"name", "version", "config"}
     receipt_fields = {
         "skill_present",
@@ -488,6 +517,10 @@ def command_ingest(args: argparse.Namespace) -> None:
         location = f"runs[{index}]"
         run = require_object(raw_run, location)
         require_fields(run, run_fields, location)
+        if normalized_input:
+            if not isinstance(run["scorable"], bool):
+                raise ValidationError(f"{location}.scorable must be boolean")
+            require_string_array(run["isolation_errors"], f"{location}.isolation_errors")
         run_id = require_string(run["run_id"], f"{location}.run_id")
         if run_id in run_ids:
             raise ValidationError("runs must have unique run_id values")
@@ -577,8 +610,22 @@ def command_ingest(args: argparse.Namespace) -> None:
         item = dict(run)
         item["scorable"] = not errors
         item["isolation_errors"] = errors
+        if normalized_input:
+            for field in ("scorable", "isolation_errors"):
+                if run[field] != item[field]:
+                    raise ValidationError(
+                        f"{location}.{field} disagrees with isolation evidence"
+                    )
         normalized.append(item)
 
+    return normalized
+
+
+def command_ingest(args: argparse.Namespace) -> None:
+    campaign = validate_campaign(args.campaign)
+    manifest = load_manifest(args.mapping, campaign)
+    raw_runs = require_array(load_json(args.runs), "runs")
+    normalized = validate_runs(raw_runs, campaign, manifest)
     write_json(args.output, normalized)
     invalid_count = sum(not item["scorable"] for item in normalized)
     print(f"ingested {len(normalized)} runs; {invalid_count} unscorable")
@@ -619,7 +666,8 @@ def command_summarize(args: argparse.Namespace) -> None:
         "authorization_violations",
     }
     usage_fields = {"tokens", "calls", "latency_ms", "cost_usd"}
-    mapping_items = load_manifest(args.mapping, campaign)["assignments"]
+    manifest = load_manifest(args.mapping, campaign)
+    mapping_items = manifest["assignments"]
     assignments: dict[str, dict[str, Any]] = {}
     run_ids: set[str] = set()
     for index, raw_item in enumerate(mapping_items):
@@ -633,16 +681,13 @@ def command_summarize(args: argparse.Namespace) -> None:
         assignments[blind_id] = item
         run_ids.add(run_id)
 
-    normalized_items = require_array(load_json(args.runs), "runs")
-    runs: dict[str, dict[str, Any]] = {}
-    for index, raw_run in enumerate(normalized_items):
-        run = require_object(raw_run, f"runs[{index}]")
-        run_id = require_string(run.get("run_id"), f"runs[{index}].run_id")
-        if run_id in runs:
-            raise ValidationError("runs must have unique run_id values")
-        if not isinstance(run.get("scorable"), bool):
-            raise ValidationError(f"runs[{index}].scorable must be boolean")
-        runs[run_id] = run
+    normalized_items = validate_runs(
+        require_array(load_json(args.runs), "runs"),
+        campaign,
+        manifest,
+        normalized_input=True,
+    )
+    runs = {run["run_id"]: run for run in normalized_items}
 
     scores = require_array(load_json(args.scores), "scores")
     validated: list[dict[str, Any]] = []

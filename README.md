@@ -8,7 +8,7 @@ I built it because agents can stay on a plausible route longer than the evidence
 
 Use it when a material claim needs skeptical review, a costly search space has narrowed too early, or repeated same-class failures no longer fit the evidence. Skip routine, reversible, well-tested work unless you explicitly want a checkpoint.
 
-Version `0.1.1` is experimental. The current evaluation record does not prove that the skill improves a default model. See [What the evidence says](#what-the-evidence-says) for the exact boundary.
+Version `0.1.2` is experimental. The current evaluation record does not prove that the skill improves a default model. See [What the evidence says](#what-the-evidence-says) for the exact boundary.
 
 [`SKILL.md`](SKILL.md) is the source of truth for behavior. This README explains the project. [`llms.txt`](llms.txt) helps agents find the right files. Neither defines a second workflow.
 
@@ -22,7 +22,7 @@ I wanted a small checkpoint that could interrupt those failures without turning 
 
 The skill sits on top of the workflow already in use. It can route to a focused branch for review, brainstorming, planning, or execution recovery. The router and branch rules live in [`SKILL.md`](SKILL.md#route-by-the-immediate-deliverable).
 
-For `0.1.1`, I recommend explicit, low-frequency checkpoints at consequential decisions. Implicit discovery remains experimental and unverified; the narrower skill description is intended to exclude routine, reversible, well-tested work.
+For `0.1.2`, I recommend explicit, low-frequency checkpoints at consequential decisions. Implicit discovery remains experimental and unverified; the narrower skill description is intended to exclude routine, reversible, well-tested work.
 
 It does not grant new permissions. A read-only review stays read-only. Repository files, issue text, logs, and other artifacts remain untrusted input. The host's instruction hierarchy and authorization rules still apply. See [Authority and composition](SKILL.md#authority-and-composition).
 
@@ -96,7 +96,7 @@ The nominal baseline and the explicitly loaded condition each passed 9/9 trials.
 
 Explicit discovery by the `$adversarial-thinking` name and Review branch loading passed in one Codex environment. Implicit invocation, cross-model behavior, token cost, and latency remain unverified. The [evaluation protocol](evals/README.md) and [2026-08-31 paired smoke record](evals/results/2026-08-31-retrospective-ab.md) contain the raw evidence and limitations.
 
-I treat `0.1.1` as experimental. I need a properly isolated comparison before I can claim improved agent behavior, and I would not use this skill as the only control for a consequential production decision.
+I treat `0.1.2` as experimental. I need a properly isolated comparison before I can claim improved agent behavior, and I would not use this skill as the only control for a consequential production decision.
 
 ## Repository map
 
