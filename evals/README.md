@@ -45,7 +45,7 @@ Published evidence:
 - [Recommendation-quality comparison](reports/2026-09-13-recommendation-quality.md):
   stopped after two of eight planned sessions when the candidate proposed an unsafe
   correction. The [four-case freeze](campaigns/recommendation_quality_v1/) retains
-  the rejected patch for reproducibility; current v0.1.1 remains unchanged.
+  the rejected patch for reproducibility; v0.1.2 retains the v0.1.1 behavioral instructions.
 
 The September 13 reports contain manual observations and selected output
 excerpts, not complete exported native transcripts or verified usage records.
