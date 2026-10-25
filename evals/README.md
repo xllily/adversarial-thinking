@@ -29,6 +29,9 @@ secret or rule out prior exposure.
 
 Published evidence:
 
+- [Offline controller validation](reports/2026-10-24-offline-validation.md):
+  evidence revalidation, strict input checks, and portable synthetic tests;
+  94 tests passed, two optional tokenizer tests skipped, no model trials.
 - [Explicit review check](reports/2026-09-05-current-skill-review.md): two cases,
   one sample per condition; both conditions passed without an observed advantage.
 - [GLM discovery diagnostic](reports/2026-09-05-glm-discovery.md): one HTTP 429,

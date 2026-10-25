@@ -34,11 +34,19 @@ Give the judge the output of `blind`, never raw runs or the controller manifest.
 
 The judge never supplies case, condition, replicate, scorable status, or usage. `summarize` derives them from the verified controller manifest and normalized run. For initially wrong cases, transitions are `W_TO_C` or `W_TO_W`; for initially correct cases, they are `C_TO_C` or `C_TO_W`. The harness recomputes action utility, correctness, and these transitions from `gold.controller.json` and rejects disagreement. `discriminator_status` is `effective`, `ineffective`, or `not_applicable`; the effective rate excludes not-applicable cases from its denominator. Count-valued score fields must be non-negative integers, and all numeric values must be finite.
 
+Normalized runs must retain every raw-run field plus `scorable` and
+`isolation_errors`. Before scoring, `summarize` repeats the ingestion checks
+against the current campaign and manifest, then rejects derived isolation fields
+that disagree with the evidence. An older model's records cannot be reused with
+a new execution profile; valid isolation failures remain excluded from metrics.
+
 Natural-language judgment is deliberately outside T0. A future judge adapter must be separately versioned, blind to conditions, and validated against human double-scoring before its output can be treated as comparative evidence.
 
 ## Failure rules
 
 - Missing or malformed structural data: reject with exit status 2.
+- Duplicate JSON fields, overflowing numeric literals, non-integer schema versions,
+  and campaign file paths resolving outside the campaign directory are rejected.
 - Missing, contradictory, or wrong isolation evidence: retain the run but mark it unscorable.
 - Incomplete output or usage data: reject rather than impute.
 - Missing pair in a condition comparison: omit that pair; report the resulting `paired_count`.

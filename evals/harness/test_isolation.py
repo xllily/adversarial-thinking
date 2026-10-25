@@ -9,12 +9,39 @@ from unittest.mock import patch
 from evals.harness import isolation as i, isolated_worker as w
 
 
+class DiscoveryAncestorTests(unittest.TestCase):
+    def test_clean_ancestors_allowed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            parent = Path(tmp).resolve()
+            child = parent / 'child'
+            child.mkdir()
+            i.check_discovery_ancestors((child, parent))
+
+    def test_skill_markers_rejected_at_each_ancestor(self):
+        for marker in ('SKILL.md', '.agents', '.codex'):
+            for ancestor in ('parent', 'child'):
+                with self.subTest(marker=marker, ancestor=ancestor), tempfile.TemporaryDirectory() as tmp:
+                    parent = Path(tmp).resolve()
+                    child = parent / 'child'
+                    child.mkdir()
+                    path = (parent if ancestor == 'parent' else child) / marker
+                    if marker == 'SKILL.md':
+                        path.write_text('skill')
+                    else:
+                        path.mkdir()
+                    with self.assertRaisesRegex(ValueError, 'outside skill discovery trees'):
+                        i.check_discovery_ancestors((child, parent))
+
+
 class IsolationTests(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory(dir='/private/tmp')
+        self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name).resolve() / 'prepared'
-        self.manifest = i.prepare(self.root)
+        # These fixtures never run agents. Test the ancestry guard separately;
+        # do not make fixture construction depend on the host's installed skills.
+        with patch.object(i, 'check_discovery_ancestors'):
+            self.manifest = i.prepare(self.root)
 
     def test_eight_actual_mounts_and_no_control_data(self):
         manifest = i.load_manifest(self.root)

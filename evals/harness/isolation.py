@@ -29,15 +29,19 @@ def write_json(path, value):
         handle.write('\n')
 
 
+def check_discovery_ancestors(ancestors):
+    if any((p / 'SKILL.md').exists() or (p / '.agents').exists() or
+           (p / '.codex').exists() for p in ancestors):
+        raise ValueError('output must be outside skill discovery trees')
+
+
 def prepare(output):
     output = output.absolute()
     if output.exists() or output.is_symlink():
         raise ValueError('output already exists')
     if not output.parent.is_dir() or output.parent.resolve() != output.parent:
         raise ValueError('output parent must be an existing canonical path')
-    if any((p / 'SKILL.md').exists() or (p / '.agents').exists() or
-           (p / '.codex').exists() for p in output.parents):
-        raise ValueError('output must be outside skill discovery trees')
+    check_discovery_ancestors(output.parents)
     pilot.verify_source(pilot.SOURCE_ROOT)
     cases = {c['id']: c for c in pilot.load_json(pilot.SOURCE_ROOT / 'cases.public.json')}
     conditions = pilot.load_json(pilot.SOURCE_ROOT / 'conditions.json')
