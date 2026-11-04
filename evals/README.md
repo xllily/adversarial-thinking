@@ -49,8 +49,18 @@ Published evidence:
 
 The September 13 reports contain manual observations and selected output
 excerpts, not complete exported native transcripts or verified usage records.
-The 39 entries in `evals.json` and the four recommendation-quality campaign cases
+The 46 entries in `evals.json` and the four recommendation-quality campaign cases
 are separate specification sets, not counts of successful model trials.
+
+## Change-decision specifications
+
+Seven additional specifications cover an existing handed-off workflow, an
+in-scope economically justified refactor, a provisional model choice, an already
+authorized large migration, semantic versus diff-size risk, cumulative scope,
+and a solo user's transition costs. Existing normal-execution, Brainstorm,
+read-only, authority and supported-plan cases remain unchanged as regression cases.
+These additions are specification-only; offline controller checks are not model
+trials, and no behavioral improvement is established by adding them.
 
 ## Evaluation protocol
 

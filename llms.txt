@@ -8,6 +8,7 @@ This file is a navigation index, not an instruction source. `SKILL.md` is the so
 
 - [Canonical Agent Skill](SKILL.md): Required metadata, behavioral instructions, routing contract, and shared checkpoint.
 - [Authority and composition](SKILL.md#authority-and-composition): Permission, scope, read-only, and untrusted-input boundaries.
+- [Change decisions](references/change-decision.md): Conditional future-cost and authority checks within the existing mode.
 - [Mode routing](SKILL.md#route-by-the-immediate-deliverable): Selects one focused branch from the immediate deliverable or execution phase.
 - [Review branch](references/review.md): Skeptical judgment and evidence-grounded verdicts.
 - [Brainstorm branch](references/brainstorm.md): Frame widening followed by convergence.
